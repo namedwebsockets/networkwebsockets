@@ -1,0 +1,110 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+<head>
+	<title>NamedWebSocket Test Console</title>
+
+	<script src="_namedwebsockets.js" type="text/javascript"></script>
+
+	<script>
+		function log(msg) {
+			document.getElementById('log').appendChild(document.createTextNode(new Date() + '   ' + msg + '\n'));
+		}
+		function status(msg) {
+			log(msg);
+			document.getElementById('status').textContent = msg;
+		}
+	</script>
+	<script>
+		var namedsocket;
+		var peerCount = 0;
+		var friendlyStatus = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"];
+
+		function connect() {
+			if (namedsocket && namedsocket.readyState != 3) {
+				log('Already connected.');
+				return;
+			}
+			var serviceName = document.getElementById('name').value;
+			var isBroadcast = document.getElementById('broadcast').checked;
+			if (isBroadcast) {
+				namedsocket = new BroadcastWebSocket(serviceName);
+			} else {
+				namedsocket = new LocalWebSocket(serviceName);
+			}
+			status('Connecting to "' + serviceName + '"');
+			namedsocket.onopen = function (event) {
+				document.getElementById('readyState').textContent = friendlyStatus[ namedsocket.readyState ];
+				document.getElementById('peerCount').textContent = peerCount;
+
+				status('Connected.');
+			};
+			namedsocket.onmessage = function (event) {
+				log('RCVD: ' + event.data);
+			};
+			namedsocket.onclose = function (event) {
+				document.getElementById('readyState').textContent = friendlyStatus[ namedsocket.readyState ];
+				document.getElementById('peerCount').textContent = '-';
+				peerCount = 0;
+
+				status('Disconnected.');
+			};
+			namedsocket.onconnect = function (event) {
+				document.getElementById('peerCount').textContent = ++peerCount;
+				log('Peer connected.')
+			};
+			namedsocket.ondisconnect = function (event) {
+				document.getElementById('peerCount').textContent = --peerCount;
+				log('Peer disconnected.')
+			};
+		}
+		function disconnect() {
+			if (namedsocket) {
+				status('Disconnecting.');
+				namedsocket.close();
+			} else {
+				log('Not connected.');
+			}
+		}
+		function send() {
+			if (namedsocket) {
+				namedsocket.send(document.getElementById('text').value);
+				log('SENT: ' + document.getElementById('text').value);
+		 } else {
+				log('Not connected.');
+			}
+		}
+	</script>
+</head>
+<body>
+		<h2>Named WebSockets Test Console</h2>
+
+		<p><strong>Connection Status:</strong> <span id="readyState">-</span> <span id="status">Idle</span></p>
+		<p>
+			<label for="name"><strong>Service Name:</strong></label>
+			<input id="name" type="text" size="80" value="adhocservice">
+			<input type=button value="Connect" onclick="connect()">
+			<input type=button value="Disconnect" onclick="disconnect()">
+		</p>
+		<p>
+			<strong>WebSocket Type:</strong>
+			<span style="margin: 0 20px;"></span>
+			<label for="local">Local Service</label>
+			<input type="radio" id="local" name="namedsockettype" value="LocalWebSocket" checked>
+			<span style="margin: 0 20px;"></span>
+			<label for="broadcast">Network Service</label>
+			<input type="radio" id="broadcast" name="namedsockettype" value="BroadcastWebSocket">
+		</p>
+		<p>
+			<label><strong>Peer Count:</strong> <span id="peerCount">-</span>
+		</p>
+		<p>
+			<label for="text"><strong>Send Message:</strong></label>
+			<br>
+			<textarea id="text" type="text" rows="4" cols="80"></textarea>
+			<br>
+			<input type=button value="Send" onclick="send()">
+		</p>
+		<pre id="log">Log:
+</pre>
+</body>
+</html>
