@@ -65,9 +65,9 @@ The [Named WebSockets JavaScript polyfill library](https://github.com/richtr/nam
 * `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
 * `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
 
-You must include the polyfill in your own code to obtain these interface. In a HTML document it can be imported as follows:
+You must include the polyfill in your own code to obtain these interfaces. In a HTML document that can be done as follows:
 
-   <script src="https://raw.githubusercontent.com/richtr/namedwebsockets/master/lib/namedwebsockets.js"></script>
+    <script src="https://raw.githubusercontent.com/richtr/namedwebsockets/master/lib/namedwebsockets.js"></script>
 
 You can create a new `LocalWebSocket` connection object via the JavaScript polyfill as follows:
 
@@ -79,7 +79,7 @@ You can create a new `BroadcastWebSocket` connection object via the JavaScript p
     var broadcastWS = new BroadcastWebSocket("myServiceName");
     // Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
 
-When any other client connects to a websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another.
+When any other client connects to a `local` or `broadcast` websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another. Note that `local` and `broadcast` based websocket connections are entirely seperate entities even if they happen to share the same service name.
 
 You now have a full-duplex WebSocket channel to use for communication between each service connected to the same service name with the same service type!
 
