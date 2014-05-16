@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/richtr/namedwebsockets/vendor/websocket"
+	"github.com/gorilla/websocket"
 )
 
 const (

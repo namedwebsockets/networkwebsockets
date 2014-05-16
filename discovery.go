@@ -10,8 +10,8 @@ import (
 	"time"
 	"regexp"
 
-	"github.com/richtr/namedwebsockets/vendor/dnssd"
-	"github.com/richtr/namedwebsockets/vendor/websocket"
+	"github.com/andrewtj/dnssd"
+	"github.com/gorilla/websocket"
 )
 
 var DNSSDServer *DiscoveryServer

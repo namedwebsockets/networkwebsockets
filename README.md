@@ -19,15 +19,20 @@ To create and shared Named WebSockets currently requires a Named WebSockets Prox
 
 1. [Install go](http://golang.org/doc/install).
 
+2. Download this repository's dependencies using `go get`:
+
+        go get github.com/gorilla/websocket
+				go get github.com/andrewtj/dnssd
+
 2. Download this repository using `go get`:
 
         go get github.com/richtr/namedwebsockets
 
 3. Locate and change directory to the download repository:
 
-        cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets/src`
+        cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-4. Run a NamedWebSockets Proxy:
+5. Run a NamedWebSockets Proxy:
 
         go run *.go
 

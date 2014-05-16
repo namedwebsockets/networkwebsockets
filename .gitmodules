@@ -1,6 +1,0 @@
-[submodule "vendor/websocket"]
-	path = vendor/websocket
-	url = git@github.com:gorilla/websocket.git
-[submodule "vendor/dnssd"]
-	path = vendor/dnssd
-	url = git@github.com:andrewtj/dnssd.git
