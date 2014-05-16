@@ -1,44 +1,15 @@
 «Named» WebSockets
 ===
 
-#### Dynamic name-based WebSockets management and service discovery ####
+#### Dynamic WebSockets binding, management and service discovery ####
 
-Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections between multiple peers either on the local machine or over the local network.
+Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections between multiple peers either on the local machine or over a local network.
 
-This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, that you can download and run on your own machine following the instructions provided in this README.
+This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, that you can download and run on your own machine following the instructions provided below.
 
 Once you have a Named WebSockets Proxy up and running, then any web page or application on the local device can bind themselves to a shared WebSocket connections simply by specifiying the same *service name* from two seperate invocations of the interfaces exposed. Please read on for further information on the interfaces available.
 
-### API Interfaces
-
-The file [/lib/namedwebsocket.js](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) provides two JavaScript interfaces that can be used to create and manage your own Named WebSockets (assuming a Named WebSocket Proxy is running on the local machine).
-
-To get started, include [/lib/namedwebsocket.js](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) in your HTML as follows:
-
-    <script src="https://raw.githubusercontent.com/richtr/namedwebsockets/master/lib/namedwebsockets.js"></script>
-
-After this has been added two new JavaScript interfaces are made available:
-
-* `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
-* `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
-
-You can create a new `LocalWebSocket` connection as follows in JavaScript:
-
-    var localWS = new LocalWebSocket("myServiceName");
-
-		// Now do something with `localWS` (it is a WebSocket object so use accordingly)
-
-You can create a new `BroadcastWebSocket` connection as follows in JavaScript:
-
-    var broadcastWS = new BroadcastWebSocket("myServiceName");
-
-		// Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
-
-When any other client connects to a websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another.
-
-You now have a full-duplex WebSocket channel to use for communication between each service connected to the same service name with the same service type!
-
-### Running a Named Websockets Proxy
+### Run a Named Websockets Proxy
 
 To create and shared Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network.
 
@@ -70,11 +41,34 @@ If you are on Windows you can obtain Bonjour via [Bonjour Print Services for Win
 
 For other POSIX platforms Apple offer [mDNSResponder](http://opensource.apple.com/tarballs/mDNSResponder/) as open-source, however the [Avahi](http://www.avahi.org/) project is the de facto choice on most Linux and BSD systems.
 
-### Additional Interfaces
+### API Interfaces
 
 #### Local HTTP Test Console
 
 Once a Named WebSockets Proxy is up and running, you can access its test console and play around with both `local` and `broadcast` Named WebSockets at `http:/localhost:9009/console`.
+
+#### JavaScript Interfaces
+
+Named WebSockets expose two new JavaScript interfaces on the root global object (e.g. `window`) as follows:
+
+* `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
+* `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
+
+You can create a new `LocalWebSocket` connection as follows in JavaScript:
+
+    var localWS = new LocalWebSocket("myServiceName");
+
+		// Now do something with `localWS` (it is a WebSocket object so use accordingly)
+
+You can create a new `BroadcastWebSocket` connection as follows in JavaScript:
+
+    var broadcastWS = new BroadcastWebSocket("myServiceName");
+
+		// Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
+
+When any other client connects to a websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another.
+
+You now have a full-duplex WebSocket channel to use for communication between each service connected to the same service name with the same service type!
 
 #### WebSocket Interfaces
 
