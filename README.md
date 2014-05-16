@@ -9,7 +9,7 @@ Any web page or application on the local device can bind themselves to shared We
 
 This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, required to manage Named WebSockets. You must [download and run this proxy](#run-a-named-websockets-proxy) on your own machine following the instructions provided herein to try this concept out.
 
-Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#api-interfaces)!
+Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#named-websocket-interfaces)!
 
 ### Run a Named Websockets Proxy
 
@@ -32,11 +32,15 @@ To create and shared Named WebSockets currently requires a Named WebSockets Prox
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-5. Run a Named WebSockets Proxy:
+5. Run your Named WebSockets Proxy:
 
         go run *.go
 
-Note: Named WebSockets works on port `9009` (and port `9009` only!). Only change the port in the source code if you know what you are doing.
+At this point your Named WebSockets Proxy should be up and ready for usage at `localhost:9009`*!
+
+You can now start using your Named WebSockets Proxy via any of the [Named WebSocket Proxy Interfaces](#named-websocket-interfaces) described below.
+
+\* Named WebSocket Proxies should run on port `9009` and port `9009` only. Changing the port number is likely to break things.
 
 #### Set up a DNS Service Discovery Client
 
@@ -48,7 +52,7 @@ If you are on Windows you can obtain Bonjour via [Bonjour Print Services for Win
 
 For other POSIX platforms Apple offer [mDNSResponder](http://opensource.apple.com/tarballs/mDNSResponder/) as open-source, however the [Avahi](http://www.avahi.org/) project is the de facto choice on most Linux and BSD systems.
 
-### API Interfaces
+### Named WebSocket Interfaces
 
 #### Local HTTP Test Console
 
@@ -56,17 +60,21 @@ Once a Named WebSockets Proxy is up and running, you can access its test console
 
 #### JavaScript Interfaces
 
-Named WebSockets expose two new JavaScript interfaces on the root global object (e.g. `window`) as follows:
+The [Named WebSockets JavaScript polyfill library](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) exposes two new JavaScript interfaces on the root global object (e.g. `window`) for your convenience as follows:
 
 * `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
 * `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
 
-You can create a new `LocalWebSocket` connection as follows in JavaScript:
+You must include the polyfill in your own code to obtain these interface. In a HTML document it can be imported as follows:
+
+   <script src="https://raw.githubusercontent.com/richtr/namedwebsockets/master/lib/namedwebsockets.js"></script>
+
+You can create a new `LocalWebSocket` connection object via the JavaScript polyfill as follows:
 
     var localWS = new LocalWebSocket("myServiceName");
     // Now do something with `localWS` (it is a WebSocket object so use accordingly)
 
-You can create a new `BroadcastWebSocket` connection as follows in JavaScript:
+You can create a new `BroadcastWebSocket` connection object via the JavaScript polyfill as follows:
 
     var broadcastWS = new BroadcastWebSocket("myServiceName");
     // Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
