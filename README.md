@@ -76,9 +76,9 @@ You now have a full-duplex WebSocket channel to use for communication between ea
 
 Devices and services running on the local machine can register and use Named WebSockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Named WebSockets proxy client also).
 
-To create a new `local` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `http://localhost:9009/local/<serviceName>`, where `serviceName` is the name of the service you want to create and use.
+To create a new `local` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/local/<serviceName>`, where `serviceName` is the name of the service you want to create and use.
 
-To create a new `broadcast` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `http://localhost:9009/broadcast/<serviceName>`, where `serviceName` is the name of the service you want to create and use. In addition to `local` Named WebSocket services, this type of Named WebSocket will be advertised in your local network and other Named WebSocket Proxies running in the network will connect to your broadcasted web socket interface.
+To create a new `broadcast` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/broadcast/<serviceName>`, where `serviceName` is the name of the service you want to create and use. In addition to `local` Named WebSocket services, this type of Named WebSocket will be advertised in your local network and other Named WebSocket Proxies running in the network will connect to your broadcasted web socket interface.
 
 ### Feedback
 
