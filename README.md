@@ -22,7 +22,7 @@ To create and shared Named WebSockets currently requires a Named WebSockets Prox
 2. Download this repository's dependencies using `go get`:
 
         go get github.com/gorilla/websocket
-				go get github.com/andrewtj/dnssd
+        go get github.com/andrewtj/dnssd
 
 2. Download this repository using `go get`:
 
@@ -64,14 +64,12 @@ Named WebSockets expose two new JavaScript interfaces on the root global object 
 You can create a new `LocalWebSocket` connection as follows in JavaScript:
 
     var localWS = new LocalWebSocket("myServiceName");
-
-		// Now do something with `localWS` (it is a WebSocket object so use accordingly)
+    // Now do something with `localWS` (it is a WebSocket object so use accordingly)
 
 You can create a new `BroadcastWebSocket` connection as follows in JavaScript:
 
     var broadcastWS = new BroadcastWebSocket("myServiceName");
-
-		// Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
+    // Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
 
 When any other client connects to a websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another.
 
