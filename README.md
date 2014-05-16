@@ -3,7 +3,7 @@
 
 #### Dynamic WebSocket binding, management and service discovery ####
 
-Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections sharing the same name between multiple peers either on a local machine or over a local network.
+Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections sharing the same service name between multiple peers either on a local machine or over a local network.
 
 Any web page or application on the local device can bind themselves to shared WebSocket connections by simply requesting the same *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name you'd like).
 
@@ -13,26 +13,26 @@ Once you have a Named WebSockets Proxy up and running on the local machine then 
 
 ### Run a Named Websockets Proxy
 
-To create and shared Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network.
+To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run a Named WebSockets Proxy as follows:
 
 1. Ensure you have a suitable [DNS Service Discovery client](#set-up-a-dns-service-discovery-client) installed and running for your machine's architecture.
 
-1. [Install go](http://golang.org/doc/install).
+2. [Install go](http://golang.org/doc/install).
 
-2. Download this repository's dependencies using `go get`:
+3. Download this repository's dependencies using `go get`:
 
         go get github.com/gorilla/websocket
         go get github.com/andrewtj/dnssd
 
-2. Download this repository using `go get`:
+4. Download this repository using `go get`:
 
         go get github.com/richtr/namedwebsockets
 
-3. Locate and change directory to the download repository:
+5. Locate and change directory to the download repository:
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-5. Run your Named WebSockets Proxy:
+6. Run your Named WebSockets Proxy:
 
         go run *.go
 
