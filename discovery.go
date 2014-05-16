@@ -161,6 +161,12 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 
 	servicePath := txt["path"] // can be an empty string
 
+	isBroadcast, err := path.Match("/broadcast/*", servicePath)
+	if err != nil || isBroadcast == false {
+		log.Print("Proxy websockets can only bind to /broadcast/* websocket services.")
+		return
+	}
+
 	// Build URL
 	remoteWSUrl := &url.URL{
 		Scheme: "ws",
