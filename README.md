@@ -32,7 +32,7 @@ To create and shared Named WebSockets currently requires a Named WebSockets Prox
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-5. Run a NamedWebSockets Proxy:
+5. Run a Named WebSockets Proxy:
 
         go run *.go
 
@@ -85,7 +85,7 @@ To create a new `broadcast` Named WebSocket service from anywhere on the local m
 
 ### Feedback
 
-If you find any bugs or issues please report them on the [NamedWebSockets Issue Tracker](https://github.com/richtr/namedwebsockets/issues).
+If you find any bugs or issues please report them on the [Named WebSockets Issue Tracker](https://github.com/richtr/namedwebsockets/issues).
 
 If you would like to contribute to this project please consider [forking this repo](https://github.com/richtr/namedwebsockets/fork), making your changes and then creating a new [Pull Request](https://github.com/richtr/namedwebsockets/pulls) back to the main code repository.
 
