@@ -65,9 +65,9 @@ The [Named WebSockets JavaScript polyfill library](https://github.com/richtr/nam
 * `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
 * `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
 
-You must include the polyfill in your own code to obtain these interfaces. In a HTML document that can be done as follows:
+You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming your [Named WebSockets JavaScript polyfill](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) is located at `lib/namedwebsockets.js` then that can be done in an HTML document as follows:
 
-    <script src="https://raw.githubusercontent.com/richtr/namedwebsockets/master/lib/namedwebsockets.js"></script>
+    <script src="lib/namedwebsockets.js"></script>
 
 You can create a new `LocalWebSocket` connection object via the JavaScript polyfill as follows:
 
