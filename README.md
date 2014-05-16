@@ -1,9 +1,9 @@
 «Named» WebSockets
 ===
 
-#### Dynamic WebSockets binding, management and service discovery ####
+#### Dynamic WebSocket binding, management and service discovery ####
 
-Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections between multiple peers either on the local machine or over a local network.
+Named WebSockets is a simple and powerful way to dynamically create, bind and share WebSocket connections sharing the same name between multiple peers either on a local machine or over a local network.
 
 Any web page or application on the local device can bind themselves to shared WebSocket connections by simply requesting the same *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name you'd like).
 
