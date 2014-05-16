@@ -14,7 +14,7 @@ var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9_-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
 
-var consoleTempl = template.Must(template.ParseFiles("_www/console.html"))
+var consoleTempl = template.Must(template.ParseFiles("console.html"))
 
 func setupHTTP() {
 	name, err := os.Hostname()
