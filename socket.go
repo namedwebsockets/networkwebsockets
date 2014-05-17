@@ -43,6 +43,12 @@ type Connection struct {
 	isProxy bool
 }
 
+// Send a message to the target websocket connection
+func (conn *Connection) write(mt int, payload []byte) {
+	conn.ws.SetWriteDeadline(time.Now().Add(writeWait))
+	conn.ws.WriteMessage(mt, payload)
+}
+
 type Message struct {
 	source  *Connection
 	payload []byte
@@ -118,17 +124,12 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		isProxy: isProxy,
 	}
 
-	sock.addConnection(conn)
-
-	go sock.writeConnectionPump(conn)
-	sock.readConnectionPump(conn)
-
+	sock.addConnection(conn, true)
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
 func (sock *NamedWebSocket) readConnectionPump(conn *Connection) {
 	defer func() {
-		conn.ws.Close()
 		sock.removeConnection(conn)
 	}()
 	conn.ws.SetReadLimit(maxMessageSize)
@@ -139,10 +140,12 @@ func (sock *NamedWebSocket) readConnectionPump(conn *Connection) {
 		if err != nil {
 			break
 		}
+
 		wsBroadcast := &Message{
 			source:  conn,
 			payload: message,
 		}
+
 		sock.broadcastBuffer <- wsBroadcast
 	}
 }
@@ -152,13 +155,12 @@ func (sock *NamedWebSocket) writeConnectionPump(conn *Connection) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		conn.ws.Close()
 		sock.removeConnection(conn)
 	}()
 	for {
 		select {
 		case <-ticker.C:
-			sock.write(conn, websocket.PingMessage, []byte{})
+			conn.write(websocket.PingMessage, []byte{})
 		}
 	}
 }
@@ -169,13 +171,13 @@ func (sock *NamedWebSocket) messageDispatcher() {
 		select {
 		case wsConnect, ok := <-sock.controlBuffer:
 			if !ok {
-				sock.write(wsConnect.source, websocket.CloseMessage, []byte{})
+				wsConnect.source.write(websocket.CloseMessage, []byte{})
 				return
 			}
 			sock.broadcast(wsConnect)
 		case wsBroadcast, ok := <-sock.broadcastBuffer:
 			if !ok {
-				sock.write(wsBroadcast.source, websocket.CloseMessage, []byte{})
+				wsBroadcast.source.write(websocket.CloseMessage, []byte{})
 				return
 			}
 			sock.broadcast(wsBroadcast)
@@ -184,8 +186,7 @@ func (sock *NamedWebSocket) messageDispatcher() {
 }
 
 // Set up a new NamedWebSocket connection instance
-func (sock *NamedWebSocket) addConnection(conn *Connection) {
-
+func (sock *NamedWebSocket) addConnection(conn *Connection, writable bool) {
 	connectPayload := []byte("____connect")
 
 	// Notify new websocket connection of existing websocket connections
@@ -194,7 +195,7 @@ func (sock *NamedWebSocket) addConnection(conn *Connection) {
 		if conn.isProxy && oConn.isProxy {
 			continue
 		}
-		sock.write(conn, websocket.TextMessage, connectPayload)
+		conn.write(websocket.TextMessage, connectPayload)
 	}
 
 	if !conn.isProxy {
@@ -208,14 +209,14 @@ func (sock *NamedWebSocket) addConnection(conn *Connection) {
 		sock.controlBuffer <- wsConnect
 	}
 
-	// Add this websocket instance to connections
-	sock.connections = append(sock.connections, conn)
-}
+	// Add this websocket instance to Named WebSocket broadcast list
+	if writable {
+		sock.connections = append(sock.connections, conn)
+	}
 
-// Send a message to the target websocket connection
-func (sock *NamedWebSocket) write(conn *Connection, mt int, payload []byte) {
-	conn.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	conn.ws.WriteMessage(mt, payload)
+	// Start connection read/write pumps
+	go sock.writeConnectionPump(conn)
+	sock.readConnectionPump(conn)
 }
 
 // Broadcast a message to all websocket connections for this NamedWebSocket
@@ -227,13 +228,15 @@ func (sock *NamedWebSocket) broadcast(broadcast *Message) {
 			if conn.isProxy && broadcast.source.isProxy {
 				continue
 			}
-			sock.write(conn, websocket.TextMessage, broadcast.payload)
+			conn.write(websocket.TextMessage, broadcast.payload)
 		}
 	}
 }
 
 // Tear down an existing NamedWebSocket connection instance
 func (sock *NamedWebSocket) removeConnection(conn *Connection) {
+	conn.ws.Close()
+
 	for i, oConn := range sock.connections {
 		if oConn.ws == conn.ws {
 			sock.connections = append(sock.connections[:i], sock.connections[i+1:]...)

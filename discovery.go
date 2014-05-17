@@ -200,7 +200,5 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 	}
 
 	// Don't block discovery process
-	go sock.writeConnectionPump(conn)
-	go sock.readConnectionPump(conn)
-
+	go sock.addConnection(conn, false)
 }
