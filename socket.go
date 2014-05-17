@@ -235,14 +235,14 @@ func (sock *NamedWebSocket) broadcast(broadcast *Message) {
 
 // Tear down an existing NamedWebSocket connection instance
 func (sock *NamedWebSocket) removeConnection(conn *Connection) {
-	conn.ws.Close()
-
 	for i, oConn := range sock.connections {
 		if oConn.ws == conn.ws {
 			sock.connections = append(sock.connections[:i], sock.connections[i+1:]...)
 			break
 		}
 	}
+
+	conn.ws.Close()
 
 	if !conn.isProxy {
 		// Broadcast new disconnect event to all existing named websocket connections
