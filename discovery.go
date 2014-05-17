@@ -1,14 +1,14 @@
 package main
 
 import (
-	"net"
 	"log"
+	"math/rand"
+	"net"
 	"net/url"
 	"path"
-	"strconv"
-	"math/rand"
-	"time"
 	"regexp"
+	"strconv"
+	"time"
 
 	"github.com/andrewtj/dnssd"
 	"github.com/gorilla/websocket"
@@ -70,19 +70,19 @@ func NewDiscoveryServer() *DiscoveryServer {
 
 type DiscoveryClient struct {
 	serviceType string
-	registerOp *dnssd.RegisterOp
+	registerOp  *dnssd.RegisterOp
 }
 
 func (dc *DiscoveryClient) register() *dnssd.RegisterOp {
 
-	rand.Seed( time.Now().UTC().UnixNano())
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	dnssdServiceName := strconv.Itoa(rand.Int()) + "." + dc.serviceType + "._bws"
 
 	op := dnssd.NewRegisterOp(dnssdServiceName, "_ws._tcp", LocalPort, dc.registerCallback)
 
 	// Add TXT record to DNS-SD registration record
-	key, value := "path", "/broadcast/" + dc.serviceType
+	key, value := "path", "/broadcast/"+dc.serviceType
 	if err := op.SetTXTPair(key, value); err != nil {
 		log.Printf(`Unexpected error setting proxy web socket key "%s", value "%s": %v`, key, value, err)
 		return nil
@@ -170,8 +170,8 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 	// Build URL
 	remoteWSUrl := &url.URL{
 		Scheme: "ws",
-		Host: host + ":" + strconv.Itoa(port),
-		Path: servicePath,
+		Host:   host + ":" + strconv.Itoa(port),
+		Path:   servicePath,
 	}
 
 	serviceName := path.Base(servicePath)
@@ -186,7 +186,7 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 	log.Printf("Establishing proxy web socket connection to ws://%s:%d%s", host, port, servicePath)
 
 	ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-		"Origin": []string{LocalHost},
+		"Origin":                     []string{LocalHost},
 		"X-BroadcastWebSocket-Proxy": []string{"true"},
 	})
 	if nErr != nil {
@@ -195,7 +195,7 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 	}
 
 	conn := &Connection{
-		ws: ws,
+		ws:      ws,
 		isProxy: true,
 	}
 

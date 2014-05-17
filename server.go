@@ -1,13 +1,13 @@
 package main
 
 import (
-	"os"
 	"fmt"
 	"net/http"
-	"text/template"
-	"regexp"
+	"os"
 	"path"
+	"regexp"
 	"strconv"
+	"text/template"
 )
 
 var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9_-]{1,255}$")
@@ -34,10 +34,10 @@ func setupHTTP() {
 	portStr := strconv.Itoa(LocalPort)
 
 	// Bind and serve on device's public interface
-	go http.ListenAndServe(LocalHost + ":" + portStr, nil)
+	go http.ListenAndServe(LocalHost+":"+portStr, nil)
 
 	// Bind and serve also on device's loopback address
-	http.ListenAndServe("localhost:" + portStr, nil)
+	http.ListenAndServe("localhost:"+portStr, nil)
 }
 
 func serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
 	portSuffix := ":" + strconv.Itoa(LocalPort)
 
 	// Only allow access from localhost
-	if r.Host != "localhost" + portSuffix && r.Host != "127.0.0.1" + portSuffix {
+	if r.Host != "localhost"+portSuffix && r.Host != "127.0.0.1"+portSuffix {
 		http.Error(w, "Permission denied. Named WebSockets Test Console is only accessible from localhost", 403)
 		return
 	}

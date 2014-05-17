@@ -29,22 +29,22 @@ type NamedWebSocket struct {
 	connections []*Connection
 
 	// Buffered channel of outbound service messages.
-	broadcastBuffer chan *WSMessage
+	broadcastBuffer chan *Message
 
 	// Buffered channel of outbound connect/disconnect messages
-	controlBuffer chan *WSMessage
+	controlBuffer chan *Message
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryClient *DiscoveryClient
 }
 
 type Connection struct {
-	ws *websocket.Conn
+	ws      *websocket.Conn
 	isProxy bool
 }
 
-type WSMessage struct {
-	source *Connection
+type Message struct {
+	source  *Connection
 	payload []byte
 }
 
@@ -64,10 +64,10 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
 	}
 
 	sock := &NamedWebSocket{
-		serviceName: serviceName,
-		connections: make([]*Connection, 0),
-		broadcastBuffer: make(chan *WSMessage, 512),
-		controlBuffer: make(chan *WSMessage, 512),
+		serviceName:     serviceName,
+		connections:     make([]*Connection, 0),
+		broadcastBuffer: make(chan *Message, 512),
+		controlBuffer:   make(chan *Message, 512),
 	}
 
 	go sock.messageDispatcher()
@@ -102,9 +102,9 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ws, err := upgrader.Upgrade(w, r, map[string][]string{
-		"Access-Control-Allow-Origin": []string{"*"},
+		"Access-Control-Allow-Origin":      []string{"*"},
 		"Access-Control-Allow-Credentials": []string{"true"},
-		"Access-Control-Allow-Headers": []string{"content-type"},
+		"Access-Control-Allow-Headers":     []string{"content-type"},
 	})
 	if err != nil {
 		if _, ok := err.(websocket.HandshakeError); !ok {
@@ -114,7 +114,7 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn := &Connection{
-		ws: ws,
+		ws:      ws,
 		isProxy: isProxy,
 	}
 
@@ -139,8 +139,8 @@ func (sock *NamedWebSocket) readConnectionPump(conn *Connection) {
 		if err != nil {
 			break
 		}
-		wsBroadcast := &WSMessage{
-			source: conn,
+		wsBroadcast := &Message{
+			source:  conn,
 			payload: message,
 		}
 		sock.broadcastBuffer <- wsBroadcast
@@ -157,8 +157,8 @@ func (sock *NamedWebSocket) writeConnectionPump(conn *Connection) {
 	}()
 	for {
 		select {
-			case <-ticker.C:
-				sock.write(conn, websocket.PingMessage, []byte{})
+		case <-ticker.C:
+			sock.write(conn, websocket.PingMessage, []byte{})
 		}
 	}
 }
@@ -197,8 +197,8 @@ func (sock *NamedWebSocket) addConnection(conn *Connection) {
 
 	if !conn.isProxy {
 		// Connect message
-		wsConnect := &WSMessage{
-			source: conn,
+		wsConnect := &Message{
+			source:  conn,
 			payload: []byte("____connect"),
 		}
 
@@ -207,7 +207,7 @@ func (sock *NamedWebSocket) addConnection(conn *Connection) {
 	}
 
 	// Add this websocket instance to connections
-	sock.connections = append( sock.connections, conn )
+	sock.connections = append(sock.connections, conn)
 }
 
 // Send a message to the target websocket connection
@@ -218,11 +218,11 @@ func (sock *NamedWebSocket) write(conn *Connection, mt int, payload []byte) {
 
 // Broadcast a message to all websocket connections for this NamedWebSocket
 // instance (except to the src websocket connection)
-func (sock *NamedWebSocket) broadcast(broadcast *WSMessage) {
+func (sock *NamedWebSocket) broadcast(broadcast *Message) {
 	for _, conn := range sock.connections {
 		if conn.ws != broadcast.source.ws {
 			// don't relay messages infinitely between proxy connections
-			if (conn.isProxy && broadcast.source.isProxy) {
+			if conn.isProxy && broadcast.source.isProxy {
 				continue
 			}
 			sock.write(conn, websocket.TextMessage, broadcast.payload)
@@ -241,8 +241,8 @@ func (sock *NamedWebSocket) removeConnection(conn *Connection) {
 
 	if !conn.isProxy {
 		// Broadcast new disconnect event to all existing named websocket connections
-		wsDisconnect := &WSMessage{
-			source: conn,
+		wsDisconnect := &Message{
+			source:  conn,
 			payload: []byte("____disconnect"),
 		}
 
