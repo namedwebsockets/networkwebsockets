@@ -190,9 +190,11 @@ func (sock *NamedWebSocket) addConnection(conn *Connection) {
 
 	// Notify new websocket connection of existing websocket connections
 	for _, oConn := range sock.connections {
-		if !conn.isProxy || (conn.isProxy && !oConn.isProxy) {
-			sock.write(conn, websocket.TextMessage, connectPayload)
+		// don't relay connect messages infinitely between proxy connections
+		if conn.isProxy && oConn.isProxy {
+			continue
 		}
+		sock.write(conn, websocket.TextMessage, connectPayload)
 	}
 
 	if !conn.isProxy {
@@ -221,7 +223,7 @@ func (sock *NamedWebSocket) write(conn *Connection, mt int, payload []byte) {
 func (sock *NamedWebSocket) broadcast(broadcast *Message) {
 	for _, conn := range sock.connections {
 		if conn.ws != broadcast.source.ws {
-			// don't relay messages infinitely between proxy connections
+			// don't relay broadcast messages infinitely between proxy connections
 			if conn.isProxy && broadcast.source.isProxy {
 				continue
 			}
