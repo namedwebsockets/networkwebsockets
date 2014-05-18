@@ -11,4 +11,4 @@ A simple chat client on top of [Named WebSockets](https://github.com/richtr/name
 
 3. Open `chat.html` in another browser window on the local machine or on another device that is also running a Named WebSockets proxy in the local network.
 
-4. Log in and out on one window using the interface provided and watch the authorization state get applied to the other window (and vice-versa).
+4. Send messages from one chat window and watch the chat message appear in the other chat window (and vice-versa).
