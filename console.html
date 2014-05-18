@@ -13,8 +13,6 @@
 	**/
 	(function(global) {
 
-		if (global.NamedWebSocket) return;
-
 		// *Always* connect to our own localhost-based proxy
 		var endpointUrlBase = "ws://localhost:{{$}}/";
 
@@ -31,47 +29,10 @@
 		}
 
 		var NamedWebSocket = function (serviceName, isBroadcast) {
-
 			if (!isValidServiceName(serviceName)) {
 				throw "Invalid Service Name: " + serviceName;
 			}
-
-			var ws = new WebSocket(endpointUrlBase + (isBroadcast ? "broadcast" : "local") + "/" + serviceName);
-
-			// Custom NamedWebSocket functionality
-
-			ws.peerCount = 0;
-
-			var messageFn;
-
-			ws.onmessage = function (evt) {
-				if (evt.data && evt.data == "____connect") {
-					// Increment peer count
-					ws.peerCount++;
-
-					// Dispatch new simple 'connect' event on WS object
-					dispatchSimpleEvent(ws, 'connect');
-
-					return; // discard message
-				} else if (evt.data && evt.data == "____disconnect") {
-					// Decrement peer count
-					ws.peerCount--;
-
-					// Dispatch new simple 'disconnect' event on WS object
-					dispatchSimpleEvent(ws, 'disconnect');
-
-					return; // discard message
-				}
-
-				// Handle normally
-				if (messageFn) messageFn.call(ws, evt);
-			};
-
-			ws.__defineSetter__("onmessage", function (fn) {
-				messageFn = fn;
-			});
-
-			return ws;
+			return new WebSocket(endpointUrlBase + (isBroadcast ? "broadcast" : "local") + "/" + serviceName);
 		};
 
 		var BroadcastWebSocket = function (serviceName) {
@@ -104,7 +65,7 @@
 		var friendlyStatus = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"];
 
 		function connect() {
-			if (namedsocket && namedsocket.readyState != 3) {
+			if (namedsocket && namedsocket.readyState <= 1) {
 				log('Already connected.');
 				return;
 			}
@@ -121,9 +82,26 @@
 				document.getElementById('peerCount').textContent = peerCount;
 
 				status('Connected.');
+
+				// Notify peers that we are connected
+				namedsocket.send('____hello');
 			};
 			namedsocket.onmessage = function (event) {
-				log('RCVD: ' + event.data);
+				if (event.data == '____hello') {
+					peerCount = 0;
+					document.getElementById('peerCount').textContent = ++peerCount;
+					log('New peer connected.');
+					// Acknowledge peer connect to all peers
+					namedsocket.send('____welcome');
+				} else if (event.data == '____welcome') {
+					document.getElementById('peerCount').textContent = ++peerCount;
+					log('Existing peer connected.');
+				} else if (event.data == "____goodbye") {
+					document.getElementById('peerCount').textContent = --peerCount;
+					log('Existing peer disconnected.');
+				} else {
+					log('RCVD: ' + event.data);
+				}
 			};
 			namedsocket.onclose = function (event) {
 				document.getElementById('readyState').textContent = friendlyStatus[ namedsocket.readyState ];
@@ -132,18 +110,14 @@
 
 				status('Disconnected.');
 			};
-			namedsocket.onconnect = function (event) {
-				document.getElementById('peerCount').textContent = ++peerCount;
-				log('Peer connected.')
-			};
-			namedsocket.ondisconnect = function (event) {
-				document.getElementById('peerCount').textContent = --peerCount;
-				log('Peer disconnected.')
-			};
 		}
 		function disconnect() {
-			if (namedsocket) {
+			if (namedsocket && namedsocket.readyState <= 1) {
 				status('Disconnecting.');
+
+				// Notify peers that we are disconnecting
+				namedsocket.send('____goodbye');
+
 				namedsocket.close();
 			} else {
 				log('Not connected.');

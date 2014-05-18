@@ -31,9 +31,6 @@ type NamedWebSocket struct {
 	// Buffered channel of outbound service messages.
 	broadcastBuffer chan *Message
 
-	// Buffered channel of outbound connect/disconnect messages
-	controlBuffer chan *Message
-
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryClient *DiscoveryClient
 }
@@ -73,7 +70,6 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
 		serviceName:     serviceName,
 		connections:     make([]*Connection, 0),
 		broadcastBuffer: make(chan *Message, 512),
-		controlBuffer:   make(chan *Message, 512),
 	}
 
 	go sock.messageDispatcher()
@@ -165,16 +161,10 @@ func (sock *NamedWebSocket) writeConnectionPump(conn *Connection) {
 	}
 }
 
-// Handle broadcast of control and service messaging on NamedWebSocket connections
+// Send service broadcast messages on NamedWebSocket connections
 func (sock *NamedWebSocket) messageDispatcher() {
 	for {
 		select {
-		case wsConnect, ok := <-sock.controlBuffer:
-			if !ok {
-				wsConnect.source.write(websocket.CloseMessage, []byte{})
-				return
-			}
-			sock.broadcast(wsConnect)
 		case wsBroadcast, ok := <-sock.broadcastBuffer:
 			if !ok {
 				wsBroadcast.source.write(websocket.CloseMessage, []byte{})
@@ -187,28 +177,6 @@ func (sock *NamedWebSocket) messageDispatcher() {
 
 // Set up a new NamedWebSocket connection instance
 func (sock *NamedWebSocket) addConnection(conn *Connection, writable bool) {
-	connectPayload := []byte("____connect")
-
-	// Notify new websocket connection of existing websocket connections
-	for _, oConn := range sock.connections {
-		// don't relay connect messages infinitely between proxy connections
-		if conn.isProxy && oConn.isProxy {
-			continue
-		}
-		conn.write(websocket.TextMessage, connectPayload)
-	}
-
-	if !conn.isProxy {
-		// Connect message
-		wsConnect := &Message{
-			source:  conn,
-			payload: []byte("____connect"),
-		}
-
-		// Broadcast new connect event to all existing named websocket connections
-		sock.controlBuffer <- wsConnect
-	}
-
 	// Add this websocket instance to Named WebSocket broadcast list
 	if writable {
 		sock.connections = append(sock.connections, conn)
@@ -243,14 +211,4 @@ func (sock *NamedWebSocket) removeConnection(conn *Connection) {
 	}
 
 	conn.ws.Close()
-
-	if !conn.isProxy {
-		// Broadcast new disconnect event to all existing named websocket connections
-		wsDisconnect := &Message{
-			source:  conn,
-			payload: []byte("____disconnect"),
-		}
-
-		sock.controlBuffer <- wsDisconnect
-	}
 }
