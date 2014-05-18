@@ -6,7 +6,7 @@ var LocalPort = 9009
 
 func main() {
 	// Start Bonjour discovery service
-	setupDNSSD()
+	NewDiscoveryServer()
 
 	// Start HTTP/WebSocket endpoint server
 	setupHTTP()

@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"math/rand"
-	"net"
 	"net/url"
 	"path"
 	"regexp"
@@ -14,25 +13,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var DNSSDServer *DiscoveryServer
-var ListenerPort int
-
 var advertisedServiceNames = map[string]bool{}
 
 var NetworkServiceMatcher = regexp.MustCompile("^[0-9]+\\..*\\._bws( \\([0-9]+\\))?$")
-
-func setupDNSSD() {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		log.Printf("Listen failed: %s", err)
-		return
-	}
-
-	ListenerPort = listener.Addr().(*net.TCPAddr).Port
-
-	// Listen to the network for shared websocket services
-	DNSSDServer = NewDiscoveryServer()
-}
 
 func NewDiscoveryClient(serviceType string) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
