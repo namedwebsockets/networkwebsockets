@@ -25,6 +25,18 @@
 			doLogout(data.username);
 		});
 
+		pubSubHub.subscribe('user.islogged.in', function (data) {
+			if (loggedIn) {
+				var username = document.getElementById('username').value;
+				pubSubHub.publish('user.logged.in', { 'username': username });
+			}
+		});
+
+		// Initialize logged in state on page load
+		localWS.onopen = function() {
+			pubSubHub.publish('user.islogged.in');
+		}
+
 		var loggedIn = false;
 
 		function doAuth() {
