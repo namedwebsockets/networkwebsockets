@@ -3,7 +3,7 @@
  * Basic Publish/Subscribe library for Named WebSockets
  * ------------------------------------------------------------------------
  * ------------------------------------------------------------------------
- * https://github.com/richtr/namedwebsockets//tree/master/examples/pubsub
+ * https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub
  * ------------------------------------------------------------------------
  *
  * For an example of usage, please see `pubsub.html`.
@@ -30,9 +30,11 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 			var msg = JSON.parse(messageEvent.data);
 
 			if (msg.action && msg.action == "publish") {
-				for (var subscribedNodeId in this.topicSubscriptions[msg.topicURI]) {
-					for (var callback in this.topicSubscriptions[msg.topicURI][subscribedNodeId]) {
-						(this.topicSubscriptions[msg.topicURI][subscribedNodeId][callback]).call(this, msg.payload);
+				var subscriptions = this.topicSubscriptions[msg.topicURI];
+				for (var nodeId in subscriptions) {
+					var nodeSubscriptions = subscriptions[nodeId];
+					for (var callback in nodeSubscriptions) {
+						(nodeSubscriptions[callback]).call(this, msg.payload);
 					}
 				}
 			}
@@ -45,28 +47,28 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 NamedWebSockets_Basic_PubSub.prototype.constructor = NamedWebSockets_Basic_PubSub;
 
 NamedWebSockets_Basic_PubSub.prototype.subscribe = function(topicURI, successCallback)	{
-	var topicSubscriptionsContainer = this.topicSubscriptions[topicURI] || {};
-	var topicSubscriptionsContainerNode = topicSubscriptionsContainer[this.nodeId] || [];
+	var subscriptions = this.topicSubscriptions[topicURI] || {};
+	var nodeSubscriptions = subscriptions[this.nodeId] || [];
 
-	topicSubscriptionsContainerNode.push(successCallback);
+	nodeSubscriptions.push(successCallback);
 
-	topicSubscriptionsContainer[this.nodeId] = topicSubscriptionsContainerNode;
-	this.topicSubscriptions[topicURI] = topicSubscriptionsContainer;
+	subscriptions[this.nodeId] = nodeSubscriptions;
+	this.topicSubscriptions[topicURI] = subscriptions;
 };
 
 NamedWebSockets_Basic_PubSub.prototype.unsubscribe = function(topicURI, successCallback)	{
-	var topicSubscriptionsContainer = this.topicSubscriptions[topicURI] || {};
-	var topicSubscriptionsContainerNode = topicSubscriptionsContainer[this.nodeId] || [];
+	var subscriptions = this.topicSubscriptions[topicURI] || {};
+	var nodeSubscriptions = subscriptions[this.nodeId] || [];
 
-	for (var i in topicSubscriptionsContainerNode) {
-		if (successCallbackBack == topicSubscriptionsContainerNode[i]) {
-			topicSubscriptionsContainerNode.splice(i, 1);
+	for (var i in nodeSubscriptions) {
+		if (successCallbackBack == nodeSubscriptions[i]) {
+			nodeSubscriptions.splice(i, 1);
 			break;
 		}
 	}
 
-	topicSubscriptionsContainer[this.nodeId] = topicSubscriptionsContainerNode;
-	this.topicSubscriptions[topicURI] = topicSubscriptionsContainer;
+	subscriptions[this.nodeId] = nodeSubscriptions;
+	this.topicSubscriptions[topicURI] = subscriptions;
 }
 
 NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, successCallback, advancedOptions)	{
