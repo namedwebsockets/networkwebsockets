@@ -56,7 +56,7 @@ For other POSIX platforms Apple offer [mDNSResponder](http://opensource.apple.co
 
 #### Local HTTP Test Console
 
-Once a Named WebSockets Proxy is up and running, you can access its test console and play around with both `local` and `broadcast` Named WebSockets at `http:/localhost:9009/console`.
+Once a Named WebSockets Proxy is up and running, you can access its test console and play around with both `local` and `broadcast` Named WebSockets at `http://localhost:9009/console`.
 
 #### JavaScript Interfaces
 
