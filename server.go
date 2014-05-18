@@ -10,7 +10,7 @@ import (
 	"text/template"
 )
 
-var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9_-]{1,255}$")
+var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
 
