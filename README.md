@@ -91,6 +91,11 @@ To create a new `local` Named WebSocket service from anywhere on the local machi
 
 To create a new `broadcast` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/broadcast/<serviceName>`, where `serviceName` is the name of the service you want to create and use. In addition to `local` Named WebSocket services, this type of Named WebSocket will be advertised in your local network and other Named WebSocket Proxies running in the network will connect to your broadcasted web socket interface.
 
+### Examples
+
+* [Chat example](https://github.com/richtr/namedwebsockets/tree/master/examples/chat)
+* [PubSub example](https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub)
+
 ### Feedback
 
 If you find any bugs or issues please report them on the [Named WebSockets Issue Tracker](https://github.com/richtr/namedwebsockets/issues).
