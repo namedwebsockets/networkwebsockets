@@ -107,6 +107,8 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		"Access-Control-Allow-Origin":      []string{"*"},
 		"Access-Control-Allow-Credentials": []string{"true"},
 		"Access-Control-Allow-Headers":     []string{"content-type"},
+		// Return requested subprotocol(s) as supported assuming peers will be handle it
+		"Sec-Websocket-Protocol": []string(r.Header["Sec-Websocket-Protocol"]),
 	})
 	if err != nil {
 		if _, ok := err.(websocket.HandshakeError); !ok {
