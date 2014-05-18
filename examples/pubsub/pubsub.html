@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Named WebSockets Publish/Subscribe Demo</title>
+	<script src="../../lib/namedwebsockets.js"></script>
+	<script src="./namedwebsockets_basic_pubsub.js"></script>
+
+	<script>
+		function log(msg) {
+			document.getElementById('log').appendChild(document.createTextNode(new Date() + '   ' + msg + '\n'));
+		}
+	</script>
+
+	<script>
+
+		var localWS = new LocalWebSocket("myAuthService");
+
+		var pubSubHub = new NamedWebSockets_Basic_PubSub(localWS);
+
+		pubSubHub.subscribe('user.logged.in', function (data) {
+			doLogin(data.username);
+		});
+
+		pubSubHub.subscribe('user.logged.out', function (data) {
+			doLogout(data.username);
+		});
+
+		var loggedIn = false;
+
+		function doAuth() {
+			var username = document.getElementById('username').value;
+
+			if (loggedIn == false) {
+				// Do your own log in stuff here...
+				doLogin(username);
+
+				pubSubHub.publish('user.logged.in', { 'username': username });
+			} else {
+				// Do your own log out stuff here...
+				doLogout(username);
+
+				pubSubHub.publish('user.logged.out', { 'username': username });
+			}
+		}
+
+		function doLogin(username) {
+			loggedIn = true;
+			document.getElementById('username').value = username;
+			document.getElementById('username').setAttribute("disabled", "disabled");
+			document.getElementById('auth').value = "Log out";
+			log('User logged in as "' + username + '"');
+		}
+
+		function doLogout(username) {
+			loggedIn = false;
+			document.getElementById('username').removeAttribute("disabled");
+			document.getElementById('auth').value = "Log in";
+			log('User "' + username + '" logged out');
+		}
+	</script>
+</head>
+<body>
+
+	<h2>Named WebSocket Publish/Subscribe Demo</h2>
+
+	<label>User name: <input id="username" type="text" value="richtr"></label>
+	<input id="auth" type="button" onclick="doAuth()" value="Log in">
+
+		<pre id="log">Log:
+</pre>
+
+	<hr>
+
+	<p>
+		Open this page in another window to see federated login/logout working across Named WebSocket connected pages.
+	</p>
+	<p>
+		<a href="pubsub.html" target="_blank">Click here to open another window now</a>
+	</p>
+
+</body>
+</html>
