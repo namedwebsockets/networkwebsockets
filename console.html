@@ -31,14 +31,6 @@
 				return /^[A-Za-z0-9\._-]{1,255}$/.test(serviceName);
 			}
 
-			function dispatchSimpleEvent (target, eventName) {
-				var simpleEvent = new Event(eventName);
-				target.dispatchEvent(simpleEvent);
-				if (target["on" + eventName]) {
-					target["on" + eventName].call(target, simpleEvent);
-				}
-			}
-
 			var NamedWebSocket = function (serviceName, isBroadcast) {
 				if (!isValidServiceName(serviceName)) {
 					throw "Invalid Service Name: " + serviceName;
