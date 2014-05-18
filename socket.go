@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -103,12 +104,19 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		isProxy = true
 	}
 
+	// Chose a subprotocol from those offered in the client request
+	selectedSubprotocol := ""
+ 	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
+		// Choose the first subprotocol requested in 'Sec-Websocket-Protocol' header
+		selectedSubprotocol = strings.Split(subprotocolsStr, ",")[0]
+	}
+
 	ws, err := upgrader.Upgrade(w, r, map[string][]string{
 		"Access-Control-Allow-Origin":      []string{"*"},
 		"Access-Control-Allow-Credentials": []string{"true"},
 		"Access-Control-Allow-Headers":     []string{"content-type"},
 		// Return requested subprotocol(s) as supported assuming peers will be handle it
-		"Sec-Websocket-Protocol": []string(r.Header["Sec-Websocket-Protocol"]),
+		"Sec-Websocket-Protocol": []string{selectedSubprotocol},
 	})
 	if err != nil {
 		if _, ok := err.(websocket.HandshakeError); !ok {
