@@ -7,14 +7,11 @@ import (
 	"path"
 	"regexp"
 	"strconv"
-	"text/template"
 )
 
 var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
-
-var consoleTempl = template.Must(template.ParseFiles("console.html"))
 
 func setupHTTP() {
 	name, err := os.Hostname()
@@ -67,7 +64,13 @@ func serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	consoleTempl.Execute(w, LocalPort)
+	consoleHTML, err := Asset("_templates/console.html")
+	if err != nil {
+		// Asset was not found.
+		http.Error(w, "Not found", 404)
+	}
+
+	w.Write(consoleHTML)
 }
 
 func serveWSCreator(w http.ResponseWriter, r *http.Request) {
