@@ -18,7 +18,7 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 		}
 	}.bind(this));
 
-	this.nodeId = Math.floor( Math.random() * 1e16);
+	this.nodeId = Math.floor(Math.random() * 1e16);
 
 	this.topicSubscriptions = [];
 
@@ -71,7 +71,7 @@ NamedWebSockets_Basic_PubSub.prototype.unsubscribe = function(topicURI, successC
 	this.topicSubscriptions[topicURI] = subscriptions;
 }
 
-NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, successCallback, advancedOptions)	{
+NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, successCallback)	{
 	// Send over websocket
 	var publishMsg = {
 		action: "publish",
@@ -79,15 +79,15 @@ NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, suc
 		payload: payload || {}
 	};
 
-	this.send(publishMsg);
-};
-
-NamedWebSockets_Basic_PubSub.prototype.send = function(json) {
-	var msg = JSON.stringify(json)
+	var msg = JSON.stringify(publishMsg)
 
 	if (this.ws.readyState != 1) {
 		this.sendQueue.push(msg);
 	} else {
 		this.ws.send(msg);
+	}
+
+	if (successCallback) {
+		successCallback.call(this);
 	}
 };
