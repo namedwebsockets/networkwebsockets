@@ -9,11 +9,15 @@ import (
 	"strconv"
 )
 
+// Configured at runtime
+var LocalHost = "localhost"
+var LocalPort = 9009
+
 var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
 
-func setupHTTP() {
+func SetupHTTP() {
 	name, err := os.Hostname()
 	if err != nil {
 		fmt.Printf("Could not determine device hostname: %v\n", err)
