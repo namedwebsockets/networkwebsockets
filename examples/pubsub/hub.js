@@ -9,7 +9,7 @@
  * For an example of usage, please see `pubsub.html`.
  *
  */
-var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
+var NamedWS_PubSubHub = function(namedWebSocketObj) {
 	this.ws = namedWebSocketObj;
 	this.ws.addEventListener("open", function() {
 		for(var msg in this.sendQueue) {
@@ -18,11 +18,7 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 		}
 	}.bind(this));
 
-	this.nodeId = Math.floor(Math.random() * 1e16);
-
 	this.topicSubscriptions = [];
-
-	this.sendQueue = [];
 
 	this.ws.onmessage = function(messageEvent) {
 		// Distribute received message to subscriber
@@ -31,11 +27,8 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 
 			if (msg.action && msg.action == "publish") {
 				var subscriptions = this.topicSubscriptions[msg.topicURI];
-				for (var nodeId in subscriptions) {
-					var nodeSubscriptions = subscriptions[nodeId];
-					for (var callback in nodeSubscriptions) {
-						(nodeSubscriptions[callback]).call(this, msg.payload);
-					}
+				for (var callback in subscriptions) {
+					(subscriptions[callback]).call(this, msg.payload);
 				}
 			}
 		} catch (e) {
@@ -44,34 +37,28 @@ var NamedWebSockets_Basic_PubSub = function(namedWebSocketObj) {
 	}.bind(this);
 };
 
-NamedWebSockets_Basic_PubSub.prototype.constructor = NamedWebSockets_Basic_PubSub;
+NamedWS_PubSubHub.prototype.constructor = NamedWS_PubSubHub;
 
-NamedWebSockets_Basic_PubSub.prototype.subscribe = function(topicURI, successCallback)	{
-	var subscriptions = this.topicSubscriptions[topicURI] || {};
-	var nodeSubscriptions = subscriptions[this.nodeId] || [];
-
-	nodeSubscriptions.push(successCallback);
-
-	subscriptions[this.nodeId] = nodeSubscriptions;
+NamedWS_PubSubHub.prototype.subscribe = function(topicURI, successCallback) {
+	if (!successCallback) return;
+	var subscriptions = this.topicSubscriptions[topicURI] || [];
+	subscriptions.push(successCallback);
 	this.topicSubscriptions[topicURI] = subscriptions;
 };
 
-NamedWebSockets_Basic_PubSub.prototype.unsubscribe = function(topicURI, successCallback)	{
-	var subscriptions = this.topicSubscriptions[topicURI] || {};
-	var nodeSubscriptions = subscriptions[this.nodeId] || [];
-
-	for (var i in nodeSubscriptions) {
-		if (successCallbackBack == nodeSubscriptions[i]) {
-			nodeSubscriptions.splice(i, 1);
+NamedWS_PubSubHub.prototype.unsubscribe = function(topicURI, successCallback) {
+	if (!successCallback) return;
+	var subscriptions = this.topicSubscriptions[topicURI] || [];
+	for (var i in subscriptions) {
+		if (successCallback == subscriptions[i]) {
+			subscriptions.splice(i, 1);
 			break;
 		}
 	}
-
-	subscriptions[this.nodeId] = nodeSubscriptions;
 	this.topicSubscriptions[topicURI] = subscriptions;
 }
 
-NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, successCallback)	{
+NamedWS_PubSubHub.prototype.publish = function(topicURI, payload, successCallback) {
 	// Send over websocket
 	var publishMsg = {
 		action: "publish",
@@ -87,7 +74,5 @@ NamedWebSockets_Basic_PubSub.prototype.publish = function(topicURI, payload, suc
 		this.ws.send(msg);
 	}
 
-	if (successCallback) {
-		successCallback.call(this);
-	}
+	if (successCallback) successCallback.call(this);
 };

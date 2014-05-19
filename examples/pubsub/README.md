@@ -9,6 +9,6 @@ A basic [publish/subscribe](https://en.wikipedia.org/wiki/Publish–subscribe_pa
 
 2. Open `pubsub.html` in a browser window.
 
-3. Open `pubsub.html` in another browser window on the local machine or on another device that is also running a Named WebSockets proxy in the local network.
+3. Open `pubsub.html` in another browser window on the *local machine only* (i.e. we are limiting our service to operate on the local machine only via a `LocalWebSocket` connection).
 
 4. Log in and out on one window using the interface provided and watch the authorization state get applied to the other window (and vice-versa).

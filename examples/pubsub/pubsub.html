@@ -2,8 +2,10 @@
 <html>
 <head>
 	<title>Named WebSockets Publish/Subscribe Demo</title>
+
 	<script src="../../lib/namedwebsockets.js"></script>
-	<script src="./namedwebsockets_basic_pubsub.js"></script>
+
+	<script src="./hub.js"></script>
 
 	<script>
 		function log(msg) {
@@ -15,7 +17,7 @@
 
 		var broadcastWS = new LocalWebSocket("com.github.richtr.service.myAuthService");
 
-		var pubSubHub = new NamedWebSockets_Basic_PubSub(broadcastWS);
+		var pubSubHub = new NamedWS_PubSubHub(broadcastWS);
 
 		pubSubHub.subscribe('user.logged.in', function (data) {
 			doLogin(data.username);
