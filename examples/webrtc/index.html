@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>WebRTC signalling over Named WebSockets</title>
+
+	<script src="./js/namedwebsockets.js"></script>
+	<script src="./js/hub.js"></script>
+	<style>
+	video {
+		width: 200px;
+	}
+	</style>
+</head>
+<body>
+<div>
+	You:
+	<video id="localVideo" autoplay style="border: 3px solid #666"></video>
+</div>
+<div id="peers">
+	<!-- WebRTC Peer Connections over Named WebSockets will appear here -->
+</div>
+
+<script>
+
+var signallingChannel = new LocalWebSocket("github.richtr.p2p.conference");
+var pubSubHub = new NamedWS_PubSubHub(signallingChannel);
+
+var nodeId = Math.floor(Math.random() * 1e16);
+var connectedPeerIds = {};
+
+var localVideoEl = document.getElementById('localVideo');
+var peerContainer = document.getElementById('peers');
+
+// WebRTC shim objects
+var PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+var SessionDescription = window.mozRTCSessionDescription || window.RTCSessionDescription;
+var IceCandidate = window.mozRTCIceCandidate || window.RTCIceCandidate;
+navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
+
+// PeerConnection object configuration+options
+var configuration = {
+	iceServers: []
+};
+var options = {
+	optional: [{
+		DtlsSrtpKeyAgreement: true
+	}]
+};
+
+var cameraStream, cameraQueue = [];
+
+// Generic error handler
+
+function logError(error) {
+	console.error(error);
+}
+
+function Peer(id, isOfferer) {
+	var pc = new PeerConnection(configuration, options);
+
+	var remoteVideoEl = document.createElement('video');
+
+	// send any ice candidates to the other peer
+	pc.onicecandidate = function(evt) {
+		if (evt.candidate)
+			pubSubHub.publish('ice', {
+				"nodeId": nodeId,
+				"candidate": evt.candidate
+			});
+	};
+
+	// let the "negotiationneeded" event trigger offer generation
+	pc.onnegotiationneeded = function() {
+		if(isOfferer) {
+			pc.createOffer(function(desc) {
+				localDescCreated(desc, 'offer');
+			}, logError);
+		}
+	}
+
+	// once remote stream arrives, show it in the remote video element
+	pc.onaddstream = function(evt) {
+		remoteVideoEl.src = URL.createObjectURL(evt.stream);
+		remoteVideoEl.play();
+
+		peerContainer.appendChild(remoteVideoEl);
+	};
+
+	var localDescCreated = function(desc, topicURI) {
+		pc.setLocalDescription(desc, function() {
+			var data = {
+				"nodeId": nodeId
+			};
+			data[topicURI] = desc;
+			pubSubHub.publish(topicURI, data)
+		}, logError);
+	}
+
+	var handleRemoteDescription = function(data) {
+		if (!pc)
+			start(false);
+
+		pc.setRemoteDescription(new SessionDescription(data), function() {
+			// if we received an offer, we need to answer
+			if (pc.remoteDescription.type == "offer") {
+				pc.createAnswer(function(desc) {
+					localDescCreated(desc, 'answer');
+				}, logError);
+			}
+		}, logError);
+	}
+
+	// Peer-specific PubSub event listeners
+
+	pubSubHub.subscribe('offer', function(data) {
+		if (data.nodeId != id) return;
+
+		handleRemoteDescription(data.offer);
+	});
+
+	pubSubHub.subscribe('answer', function(data) {
+		if (data.nodeId != id) return;
+
+		handleRemoteDescription(data.answer);
+	});
+
+	pubSubHub.subscribe('ice', function(data) {
+		if (data.nodeId != id) return;
+
+		pc.addIceCandidate(new IceCandidate(data.candidate), function() {}, logError);
+	});
+
+	pubSubHub.subscribe('goodbye', function(data) {
+		if (data.nodeId != id) return;
+
+		pc.close();
+		try {
+			peerContainer.removeChild(remoteVideoEl);
+		} catch(e) {}
+	});
+
+	// get a local stream, show it in a self-view and add it to be sent
+	if (cameraStream) {
+		pc.addStream(cameraStream);
+	} else {
+		cameraQueue.push(pc);
+	}
+}
+
+// Request camera and microphone access
+navigator.getUserMedia({
+	"video": true,
+	"audio": true
+}, function(stream) {
+	localVideoEl.src = URL.createObjectURL(stream);
+
+	cameraStream = stream;
+
+	// Apply camera to all peer connections and drain queue
+	for (var i in cameraQueue) {
+		(cameraQueue[i]).addStream(cameraStream);
+	}
+	cameraQueue = [];
+
+}, logError);
+
+// General PubSub event listeners
+
+pubSubHub.subscribe('hello', function(data) {
+	if (!connectedPeerIds[data.nodeId]) {
+		// Create new PeerConnection (answerer)
+		var pc = new Peer(data.nodeId, false);
+		connectedPeerIds[data.nodeId] = true;
+
+		pubSubHub.publish('welcome', {
+			"nodeId": nodeId
+		});
+	}
+});
+
+pubSubHub.subscribe('welcome', function(data) {
+	if (!connectedPeerIds[data.nodeId]) {
+		// Create new PeerConnection (offerer)
+		var pc = new Peer(data.nodeId, true);
+		connectedPeerIds[data.nodeId] = true;
+	}
+
+});
+
+window.addEventListener('beforeunload', function() {
+	// Let other peers clean-up once this peer leaves
+	pubSubHub.publish('goodbye', {
+		"nodeId": nodeId
+	});
+}, false);
+
+// Kick off the peer process
+pubSubHub.publish('hello', {
+	"nodeId": nodeId
+});
+
+</script>
+
+</body>
+</html>
