@@ -3,28 +3,15 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"path"
 	"regexp"
-	"strconv"
 )
-
-// Configured at runtime
-var LocalHost = "localhost"
-var LocalPort = 9009
 
 var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
 
 func SetupHTTP() {
-	name, err := os.Hostname()
-	if err != nil {
-		fmt.Printf("Could not determine device hostname: %v\n", err)
-		return
-	}
-	LocalHost = name
-
 	// Serve the test console
 	http.HandleFunc("/", serveConsoleTemplate)
 
@@ -32,23 +19,19 @@ func SetupHTTP() {
 	http.HandleFunc("/local/", serveWSCreator)
 	http.HandleFunc("/broadcast/", serveWSCreator)
 
-	portStr := strconv.Itoa(LocalPort)
-
 	// Bind and serve on device's public interface
-	go http.ListenAndServe(LocalHost+":"+portStr, nil)
+	go http.ListenAndServe(fmt.Sprintf("%s:%d", LocalHost, LocalPort), nil)
 
 	// Bind and serve also on device's loopback address
-	http.ListenAndServe("localhost:"+portStr, nil)
+	http.ListenAndServe(fmt.Sprintf("localhost:%d", LocalPort), nil)
 }
 
 func serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	portSuffix := ":" + strconv.Itoa(LocalPort)
-
 	// Only allow access from localhost
-	if r.Host != "localhost"+portSuffix && r.Host != "127.0.0.1"+portSuffix {
+	if r.Host != fmt.Sprintf("localhost:%d", LocalPort) && r.Host != fmt.Sprintf("127.0.0.1:%d", LocalPort) {
 		http.Error(w, "Permission denied. Named WebSockets Test Console is only accessible from localhost", 403)
 		return
 	}

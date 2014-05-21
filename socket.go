@@ -75,7 +75,7 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
 
 	go sock.messageDispatcher()
 
-	log.Print("New " + scope + " web socket '" + serviceName + "' created.")
+	log.Printf("New %s web socket '%s' created.", scope, serviceName)
 
 	if isBroadcast {
 		go sock.advertise()

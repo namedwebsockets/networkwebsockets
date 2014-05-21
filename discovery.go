@@ -1,12 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net/url"
 	"path"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/andrewtj/dnssd"
@@ -60,12 +60,12 @@ func (dc *DiscoveryClient) register() *dnssd.RegisterOp {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	dnssdServiceName := strconv.Itoa(rand.Int()) + "." + dc.serviceType + "._bws"
+	dnssdServiceName := fmt.Sprintf("%d.%s._bws", rand.Int(), dc.serviceType)
 
 	op := dnssd.NewRegisterOp(dnssdServiceName, "_ws._tcp", LocalPort, dc.registerCallback)
 
 	// Add TXT record to DNS-SD registration record
-	key, value := "path", "/broadcast/"+dc.serviceType
+	key, value := "path", fmt.Sprintf("/broadcast/%s", dc.serviceType)
 	if err := op.SetTXTPair(key, value); err != nil {
 		log.Printf(`Unexpected error setting proxy web socket key "%s", value "%s": %v`, key, value, err)
 		return nil
@@ -147,7 +147,7 @@ func (ds *DiscoveryServer) resolveCallback(op *dnssd.ResolveOp, err error, host 
 	// Build URL
 	remoteWSUrl := &url.URL{
 		Scheme: "ws",
-		Host:   host + ":" + strconv.Itoa(port),
+		Host:   fmt.Sprintf("%s:%d", host, port),
 		Path:   servicePath,
 	}
 
