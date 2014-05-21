@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"path"
 	"regexp"
@@ -12,7 +13,7 @@ var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
 
 var namedWebSockets = map[string]*NamedWebSocket{}
 
-func SetupHTTP() {
+func SetupHTTP(listener net.Listener) {
 	// Serve the test console
 	http.HandleFunc("/", serveConsoleTemplate)
 
@@ -20,18 +21,8 @@ func SetupHTTP() {
 	http.HandleFunc("/local/", serveWSCreator)
 	http.HandleFunc("/broadcast/", serveWSCreator)
 
-	// Bind and serve on device's public interface
-	go func() {
-		err := http.ListenAndServe(fmt.Sprintf("%s:%d", LocalHost, LocalPort), nil)
-		if err != nil {
-			log.Fatal("Could not bind port. ", err)
-		}
-	}()
-
-	// Bind and serve also on device's loopback address
-	err := http.ListenAndServe(fmt.Sprintf("localhost:%d", LocalPort), nil)
-	if err != nil {
-		log.Fatal("Could not bind port. ", err)
+	if err := http.Serve(listener, nil); err != nil {
+		log.Fatal("Could not serve proxy. ", err)
 	}
 }
 
