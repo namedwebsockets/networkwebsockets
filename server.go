@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"path"
 	"regexp"
@@ -20,10 +21,18 @@ func SetupHTTP() {
 	http.HandleFunc("/broadcast/", serveWSCreator)
 
 	// Bind and serve on device's public interface
-	go http.ListenAndServe(fmt.Sprintf("%s:%d", LocalHost, LocalPort), nil)
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf("%s:%d", LocalHost, LocalPort), nil)
+		if err != nil {
+			log.Fatal("Could not bind port. ", err)
+		}
+	}()
 
 	// Bind and serve also on device's loopback address
-	http.ListenAndServe(fmt.Sprintf("localhost:%d", LocalPort), nil)
+	err := http.ListenAndServe(fmt.Sprintf("localhost:%d", LocalPort), nil)
+	if err != nil {
+		log.Fatal("Could not bind port. ", err)
+	}
 }
 
 func serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
