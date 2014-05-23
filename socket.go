@@ -106,7 +106,7 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 
 	// Chose a subprotocol from those offered in the client request
 	selectedSubprotocol := ""
- 	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
+	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
 		// Choose the first subprotocol requested in 'Sec-Websocket-Protocol' header
 		selectedSubprotocol = strings.Split(subprotocolsStr, ",")[0]
 	}

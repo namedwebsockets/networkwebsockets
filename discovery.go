@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/richtr/mdns"
 	"github.com/gorilla/websocket"
+	"github.com/richtr/mdns"
 )
 
 var advertisedServiceNames = map[string]bool{}
@@ -23,7 +23,7 @@ var NetworkServiceMatcher = regexp.MustCompile("^([A-Za-z0-9\\._-]{1,255})\\[[0-
 
 type DiscoveryClient struct {
 	serviceType string
-	server *mdns.Server
+	server      *mdns.Server
 }
 
 func NewDiscoveryClient(serviceType string) *DiscoveryClient {
@@ -45,10 +45,9 @@ func (dc *DiscoveryClient) Register(domain string) {
 	s := &mdns.MDNSService{
 		Instance: dnssdServiceName,
 		Service:  "_ws._tcp",
-//		Addr:     []byte{127,0,0,1}, // FIXME
-		Domain:   domain,
-		Port:     LocalPort,
-		Info:     fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
+		Domain: domain,
+		Port:   LocalPort,
+		Info:   fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
 	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("err: %v", err)
@@ -84,9 +83,9 @@ func StartDiscoveryServer() {
 
 	log.Print("Listening for BroadcastWebSocket proxies in network...")
 
-	//for !discoveryServer.closed {
+	for !discoveryServer.closed {
 		discoveryServer.Browse()
-		//}
+	}
 }
 
 func (ds *DiscoveryServer) Browse() {
@@ -193,8 +192,6 @@ func (ds *DiscoveryServer) Browse() {
 		default:
 		}
 	}
-
-	ds.Browse()
 }
 
 func (ds *DiscoveryServer) Close() {

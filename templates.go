@@ -1,11 +1,11 @@
 package main
 
 import (
-    "bytes"
-    "compress/gzip"
-    "fmt"
-    "io"
-    "strings"
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
+	"strings"
 )
 
 func bindata_read(data []byte, name string) ([]byte, error) {
@@ -169,11 +169,10 @@ func templates_console_html() ([]byte, error) {
 		0x07, 0x3b, 0x0e, 0xde, 0xd3, 0x8d, 0xc7, 0x76, 0x1c, 0x6c, 0x27, 0xe6,
 		0xe5, 0xea, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xfd, 0x7d, 0xd9, 0x6a,
 		0x97, 0x15, 0x00, 0x00,
-		},
+	},
 		"_templates/console.html",
 	)
 }
-
 
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
@@ -196,6 +195,6 @@ func AssetNames() []string {
 }
 
 // _bindata is a table, holding each asset generator, mapped to its name.
-var _bindata = map[string] func() ([]byte, error) {
+var _bindata = map[string]func() ([]byte, error){
 	"_templates/console.html": templates_console_html,
 }
