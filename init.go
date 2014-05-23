@@ -16,7 +16,7 @@ func main() {
 	listener := SetupNetworking()
 
 	// Start Bonjour discovery service
-	NewDiscoveryServer()
+	go StartDiscoveryServer()
 
 	// Start HTTP/WebSocket endpoint server
 	SetupHTTP(listener)
@@ -40,7 +40,6 @@ func SetupNetworking() net.Listener {
 	}
 
 	LocalAddr = (listener.Addr()).(*net.TCPAddr)
-	println(LocalAddr.IP.String())
 
 	return listener
 }

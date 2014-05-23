@@ -22,7 +22,7 @@ To create and share Named WebSockets currently requires a Named WebSockets Proxy
 3. Download this repository's dependencies using `go get`:
 
         go get github.com/gorilla/websocket
-        go get github.com/andrewtj/dnssd
+        go get github.com/richtr/mdns
 
 4. Download this repository using `go get`:
 
