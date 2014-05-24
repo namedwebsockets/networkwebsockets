@@ -45,9 +45,9 @@ func (dc *DiscoveryClient) Register(domain string) {
 	s := &mdns.MDNSService{
 		Instance: dnssdServiceName,
 		Service:  "_ws._tcp",
-		Domain: domain,
-		Port:   LocalPort,
-		Info:   fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
+		Domain:   domain,
+		Port:     LocalPort,
+		Info:     fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
 	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("err: %v", err)
