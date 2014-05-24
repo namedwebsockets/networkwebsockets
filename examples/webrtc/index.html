@@ -22,7 +22,7 @@
 
 <script>
 
-var signallingChannel = new LocalWebSocket("github.richtr.p2p.conference");
+var signallingChannel = new BroadcastWebSocket("github.richtr.p2p.conference");
 var pubSubHub = new NamedWS_PubSubHub(signallingChannel);
 
 var nodeId = Math.floor(Math.random() * 1e16);
