@@ -80,9 +80,23 @@ To create a new `broadcast` Named WebSocket service from anywhere on the local m
 
 ### Examples
 
+Some example services built with Named WebSockets:
+
 * [Chat example](https://github.com/richtr/namedwebsockets/tree/master/examples/chat)
 * [PubSub example](https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub)
 * [WebRTC example](https://github.com/richtr/namedwebsockets/tree/master/examples/webrtc)
+
+### Discovery and service advertisement mechanism
+
+Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `broadcast` services on the local network.
+
+Named WebSocket services all use the DNS-SD service type `_ws._tcp` with a unique service name in the form `<serviceName>[<UID>]` (e.g. `myService[2049847123]`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/broadcast/myService`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
+
+When a new `broadcast` WebSocket is created then the local Named WebSockets Proxy must notify (i.e. 'ping') all other Named WebSocket Proxies in the local network about this newly created service via the DNS-SD broadcast.
+
+When a remote Named WebSockets Proxy detects a new `broadcast` on the multicast DNS-SD port then it immediately establishes a connection to that Named WebSocket's URL and then creates its own new `broadcast` WebSocket to advertise back (i.e. 'pong') to other peers.
+
+These processes repeats on all Named WebSocket Proxies whenever they receive a previously unseen 'ping' or 'pong' Named WebSocket advertisement broadcast.
 
 ### Feedback
 
