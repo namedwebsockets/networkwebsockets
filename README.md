@@ -13,11 +13,15 @@ Once you have a Named WebSockets Proxy up and running on the local machine then 
 
 ### Getting started
 
-To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run the latest precompiled Named WebSockets Proxy for your current platform from our [downloads page](https://github.com/richtr/namedwebsockets/releases).
+To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network.
+
+#### Download a pre-built binary
+
+You can download and run the latest pre-built version of the Named WebSockets Proxy from the [downloads page](https://github.com/richtr/namedwebsockets/releases).
 
 [Go to the latest downloads page](https://github.com/richtr/namedwebsockets/releases)
 
-#### Building from source
+#### Build from source
 
 Optionally you can build this project from the source files contained in this repository with the following instructions:
 
