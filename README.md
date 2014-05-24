@@ -3,7 +3,7 @@
 
 #### Dynamic WebSocket binding, management and service discovery ####
 
-Named WebSockets is a simple and powerful way to dynamically create, bind and connect WebSocket peer connections together that share the same *service name* on a local machine or over the local network.
+Named WebSockets is a simple and powerful way to dynamically create, bind and connect WebSocket peer connections together that share the same *service name* on a local machine or over the local network. This is useful for a variety of peer-to-peer applications such as file sharing or multi-player gaming.
 
 Any web page or application on the local device can bind themselves to shared WebSocket connections by simply requesting the same *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name you'd like).
 
@@ -95,6 +95,7 @@ To create a new `broadcast` Named WebSocket service from anywhere on the local m
 
 * [Chat example](https://github.com/richtr/namedwebsockets/tree/master/examples/chat)
 * [PubSub example](https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub)
+* [WebRTC example](https://github.com/richtr/namedwebsockets/tree/master/examples/webrtc)
 
 ### Feedback
 
