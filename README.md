@@ -7,32 +7,36 @@ Named WebSockets is a simple and powerful way to dynamically create, bind and co
 
 Any web page or application on the local device can bind themselves to shared WebSocket connections by simply requesting the same *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name you'd like).
 
-This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, required to manage Named WebSockets. You can [download and run this proxy](#run-a-named-websockets-proxy) on your own machine to experiment with Named WebSockets following the instructions provided here.
+This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, required to manage Named WebSockets. You can [download and run this proxy](#getting-started) on your own machine to experiment with Named WebSockets following the instructions provided here.
 
 Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#named-websocket-interfaces)!
 
-### Run a Named Websockets Proxy
+### Getting started
 
-To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run a Named WebSockets Proxy as follows:
+To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run the latest precompiled Named WebSockets Proxy for your current platform from our [releases page](https://github.com/richtr/namedwebsockets/releases).
 
-1. Ensure you have a suitable [DNS Service Discovery client](#set-up-a-dns-service-discovery-client) installed and running for your machine's architecture.
+[Go to the latest downloads page](https://github.com/richtr/namedwebsockets/releases)
 
-2. [Install go](http://golang.org/doc/install).
+#### Building from source
 
-3. Download this repository's dependencies using `go get`:
+Optionally you can build this project from the source files contained in this repository with the following instructions:
+
+1. [Install go](http://golang.org/doc/install).
+
+2. Download this repository's dependencies using `go get`:
 
         go get github.com/gorilla/websocket
         go get github.com/richtr/mdns
 
-4. Download this repository using `go get`:
+3. Download this repository using `go get`:
 
         go get github.com/richtr/namedwebsockets
 
-5. Locate and change directory to the download repository:
+4. Locate and change directory to the download repository:
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-6. Run your Named WebSockets Proxy:
+5. Run your Named WebSockets Proxy:
 
         go run *.go
 
@@ -41,16 +45,6 @@ At this point your Named WebSockets Proxy should be up and ready for usage at `l
 You can now start using your Named WebSockets Proxy via any of the [Named WebSocket Proxy Interfaces](#named-websocket-interfaces) described below.
 
 \* Named WebSocket Proxies should run on port `9009` and port `9009` only. Changing the port number is likely to break things.
-
-#### Set up a DNS Service Discovery Client
-
-This project requires a DNS Service Discovery client to be running on your device.
-
-Bonjour - a DNS Service Discovery client - comes pre-bundled with OS X. If you are on OS X you can skip the rest of this section.
-
-If you are on Windows you can obtain Bonjour via [Bonjour Print Services for Windows](http://support.apple.com/kb/dl999) or the [Bonjour SDK for Windows](https://developer.apple.com/bonjour/). Bonjour also comes bundled with iTunes if you have that installed on Windows also.
-
-For other POSIX platforms Apple offer [mDNSResponder](http://opensource.apple.com/tarballs/mDNSResponder/) as open-source, however the [Avahi](http://www.avahi.org/) project is the de facto choice on most Linux and BSD systems.
 
 ### Named WebSocket Interfaces
 
