@@ -143,8 +143,18 @@ func (ds *DiscoveryServer) Browse() {
 				}
 
 				// Build websocket data from returned information
-
-				servicePath := strings.Split(e.Info, "=")[1] // can be an empty string
+				servicePath := "/"
+				serviceParts := strings.FieldsFunc(e.Info, func (r rune) bool {
+					return r == '=' || r == ',' || r == ';' || r == ' '
+				})
+				if len(serviceParts) > 1 {
+					for i := 0; i < len(serviceParts); i += 2 {
+						if strings.ToLower(serviceParts[i]) == "path" {
+							servicePath = serviceParts[i+1]
+							break
+						}
+					}
+				}
 
 				// Build URL
 				remoteWSUrl := &url.URL{
