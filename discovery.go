@@ -128,7 +128,7 @@ func (ds *DiscoveryServer) Browse() {
 				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
 
 				// Is this a BroadcastWebSocket service?
-				if isValid := NetworkServiceMatcher.FindString(shortName); isValid == "" {
+				if isValid := NetworkServiceMatcher.MatchString(shortName); !isValid {
 					continue
 				}
 

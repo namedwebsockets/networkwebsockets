@@ -75,7 +75,7 @@ func serveWSCreator(w http.ResponseWriter, r *http.Request) {
 	// Create a new websocket service at URL
 	serviceName := path.Base(r.URL.Path)
 
-	if isValidServiceName := ValidServiceName.FindString(serviceName); isValidServiceName == "" {
+	if isValid := ValidServiceName.MatchString(serviceName); !isValid {
 		http.Error(w, "Not found", 404)
 		return
 	}
