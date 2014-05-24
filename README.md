@@ -23,20 +23,15 @@ Optionally you can build this project from the source files contained in this re
 
 1. [Install go](http://golang.org/doc/install).
 
-2. Download this repository's dependencies using `go get`:
-
-        go get github.com/gorilla/websocket
-        go get github.com/richtr/mdns
-
-3. Download this repository using `go get`:
+2. Download this repository and its dependencies using `go get`:
 
         go get github.com/richtr/namedwebsockets
 
-4. Locate and change directory to the download repository:
+3. Locate and change directory to the download repository:
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
-5. Run your Named WebSockets Proxy:
+4. Run your Named WebSockets Proxy:
 
         go run *.go
 
