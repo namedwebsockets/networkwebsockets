@@ -13,7 +13,7 @@ Once you have a Named WebSockets Proxy up and running on the local machine then 
 
 ### Getting started
 
-To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run the latest precompiled Named WebSockets Proxy for your current platform from our [releases page](https://github.com/richtr/namedwebsockets/releases).
+To create and share Named WebSockets currently requires a Named WebSockets Proxy to be running on each local machine that wants to participate in the network. You can download and run the latest precompiled Named WebSockets Proxy for your current platform from our [downloads page](https://github.com/richtr/namedwebsockets/releases).
 
 [Go to the latest downloads page](https://github.com/richtr/namedwebsockets/releases)
 
@@ -27,7 +27,7 @@ Optionally you can build this project from the source files contained in this re
 
         go get github.com/richtr/namedwebsockets
 
-3. Locate and change directory to the download repository:
+3. Locate and change directory to the newly downloaded repository:
 
         cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
 
@@ -35,17 +35,15 @@ Optionally you can build this project from the source files contained in this re
 
         go run *.go
 
-At this point your Named WebSockets Proxy should be up and ready for usage at `localhost:9009`*!
+At this point your Named WebSockets Proxy should be up and ready for usage at `localhost:9009`!
 
 You can now start using your Named WebSockets Proxy via any of the [Named WebSocket Proxy Interfaces](#named-websocket-interfaces) described below.
-
-\* Named WebSocket Proxies should run on port `9009` and port `9009` only. Changing the port number is likely to break things.
 
 ### Named WebSocket Interfaces
 
 #### Local HTTP Test Console
 
-Once a Named WebSockets Proxy is up and running, you can access its test console and play around with both `local` and `broadcast` Named WebSockets at `http://localhost:9009/console`.
+Once a Named WebSockets Proxy is up and running, you can access a test console and play around with both `local` and `broadcast` Named WebSockets at `http://localhost:9009/console`.
 
 #### JavaScript Interfaces
 
