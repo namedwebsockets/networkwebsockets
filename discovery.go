@@ -90,107 +90,109 @@ func StartDiscoveryServer() {
 
 func (ds *DiscoveryServer) Browse() {
 
-	complete := false
 	entries := make(chan *mdns.ServiceEntry, 255)
+
+	timeout := 2 * time.Second
 
 	params := &mdns.QueryParam{
 		Service: "_ws._tcp",
 		Domain:  "local",
-		Timeout: 2 * time.Second,
+		Timeout: timeout,
 		Entries: entries,
 	}
 
-	// Run the mDNS query
 	go func() {
-		err := mdns.Query(params)
-		if err != nil {
-			log.Fatalf("err: %v", err)
+		complete := false
+		finish := time.After(timeout)
+
+		// Wait for responses until timeout
+		for !complete {
+			select {
+			case e, ok := <-entries:
+
+				if !ok {
+					continue
+				}
+
+				nameComponents := strings.Split(e.Name, ".")
+				shortName := ""
+
+				for i := len(nameComponents) - 1; i >= 0; i-- {
+					if nameComponents[i] == "_ws" {
+						shortName = strings.Join(nameComponents[:i], ".")
+						break
+					}
+				}
+
+				// DEBUG
+				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
+
+				// Is this a BroadcastWebSocket service?
+				if isValid := NetworkServiceMatcher.FindString(shortName); isValid == "" {
+					continue
+				}
+
+				// Ignore our own BroadcastWebSocket services
+				if isOwned := advertisedServiceNames[shortName]; isOwned {
+					continue
+				}
+
+				// Ignore previously discovered BroadcastWebSocket services
+				if isRegistered := registeredServiceNames[shortName]; isRegistered {
+					continue
+				}
+
+				// Build websocket data from returned information
+
+				servicePath := strings.Split(e.Info, "=")[1] // can be an empty string
+
+				// Build URL
+				remoteWSUrl := &url.URL{
+					Scheme: "ws",
+					Host:   fmt.Sprintf("%s:%d", e.Host, e.Port),
+					Path:   servicePath,
+				}
+
+				serviceName := path.Base(servicePath)
+
+				// Resolve websocket connection
+				sock := namedWebSockets[servicePath]
+				if sock == nil {
+					sock = NewNamedWebSocket(serviceName, true)
+					namedWebSockets[servicePath] = sock
+				}
+
+				log.Printf("Establishing proxy web socket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+
+				ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
+					"Origin":                     []string{LocalHost},
+					"X-BroadcastWebSocket-Proxy": []string{"true"},
+				})
+				if nErr != nil {
+					log.Printf("Proxy web socket connection failed: %s", nErr)
+					return
+				}
+
+				conn := &Connection{
+					ws:      ws,
+					isProxy: true,
+				}
+
+				// Don't block discovery process
+				go sock.addConnection(conn, false)
+
+				registeredServiceNames[shortName] = true
+
+			case <-finish:
+				complete = true
+			}
 		}
-		complete = true
 	}()
 
-	// Wait for responses until timeout
-	for !complete {
-		select {
-		case e, ok := <-entries:
-
-			println("here!")
-
-			if !ok {
-				continue
-			}
-
-			nameComponents := strings.Split(e.Name, ".")
-			shortName := ""
-
-			for i := len(nameComponents) - 1; i >= 0; i-- {
-				if nameComponents[i] == "_ws" {
-					shortName = strings.Join(nameComponents[:i], ".")
-					break
-				}
-			}
-
-			// DEBUG
-			//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
-
-			// Is this a BroadcastWebSocket service?
-			if isValid := NetworkServiceMatcher.FindString(shortName); isValid == "" {
-				continue
-			}
-
-			// Ignore our own BroadcastWebSocket services
-			if isOwned := advertisedServiceNames[shortName]; isOwned {
-				continue
-			}
-
-			// Ignore previously discovered BroadcastWebSocket services
-			if isRegistered := registeredServiceNames[shortName]; isRegistered {
-				continue
-			}
-
-			// Build websocket data from returned information
-
-			servicePath := strings.Split(e.Info, "=")[1] // can be an empty string
-
-			// Build URL
-			remoteWSUrl := &url.URL{
-				Scheme: "ws",
-				Host:   fmt.Sprintf("%s:%d", e.Host, e.Port),
-				Path:   servicePath,
-			}
-
-			serviceName := path.Base(servicePath)
-
-			// Resolve websocket connection
-			sock := namedWebSockets[servicePath]
-			if sock == nil {
-				sock = NewNamedWebSocket(serviceName, true)
-				namedWebSockets[servicePath] = sock
-			}
-
-			log.Printf("Establishing proxy web socket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
-
-			ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-				"Origin":                     []string{LocalHost},
-				"X-BroadcastWebSocket-Proxy": []string{"true"},
-			})
-			if nErr != nil {
-				log.Printf("Proxy web socket connection failed: %s", nErr)
-				return
-			}
-
-			conn := &Connection{
-				ws:      ws,
-				isProxy: true,
-			}
-
-			// Don't block discovery process
-			go sock.addConnection(conn, false)
-
-			registeredServiceNames[shortName] = true
-
-		default:
-		}
+	// Run the mDNS query
+	err := mdns.Query(params)
+	if err != nil {
+		log.Fatalf("err: %v", err)
 	}
 }
 
