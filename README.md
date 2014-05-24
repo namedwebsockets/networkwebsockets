@@ -88,7 +88,7 @@ Some example services built with Named WebSockets:
 
 ### Discovery and service advertisement mechanism
 
-Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `broadcast` services on the local network.
+Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `broadcast` services on the local network. The proxy connections that result from this process between Named WebSocket Proxies are used to transport WebSocket messages between different broadcast peers using the same *service name* in the local network.
 
 Named WebSocket services all use the DNS-SD service type `_ws._tcp` with a unique service name in the form `<serviceName>[<UID>]` (e.g. `myService[2049847123]`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/broadcast/myService`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
 
