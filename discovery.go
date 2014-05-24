@@ -144,7 +144,7 @@ func (ds *DiscoveryServer) Browse() {
 
 				// Build websocket data from returned information
 				servicePath := "/"
-				serviceParts := strings.FieldsFunc(e.Info, func (r rune) bool {
+				serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
 					return r == '=' || r == ',' || r == ';' || r == ' '
 				})
 				if len(serviceParts) > 1 {
