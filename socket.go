@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -27,29 +28,16 @@ type NamedWebSocket struct {
 	serviceName string
 
 	// The current websocket connection instances to this named websocket
-	connections []*Connection
+	peers []*PeerConnection
+
+	// The current websocket proxy connection instances to this named websocket
+	proxies []*ProxyConnection
 
 	// Buffered channel of outbound service messages.
 	broadcastBuffer chan *Message
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryClient *DiscoveryClient
-}
-
-type Connection struct {
-	ws      *websocket.Conn
-	isProxy bool
-}
-
-// Send a message to the target websocket connection
-func (conn *Connection) write(mt int, payload []byte) {
-	conn.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	conn.ws.WriteMessage(mt, payload)
-}
-
-type Message struct {
-	source  *Connection
-	payload []byte
 }
 
 var upgrader = websocket.Upgrader{
@@ -69,7 +57,8 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
 
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
-		connections:     make([]*Connection, 0),
+		peers:           make([]*PeerConnection, 0),
+		proxies:         make([]*ProxyConnection, 0),
 		broadcastBuffer: make(chan *Message, 512),
 	}
 
@@ -115,7 +104,7 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		"Access-Control-Allow-Origin":      []string{"*"},
 		"Access-Control-Allow-Credentials": []string{"true"},
 		"Access-Control-Allow-Headers":     []string{"content-type"},
-		// Return requested subprotocol(s) as supported assuming peers will be handle it
+		// Return requested subprotocol(s) as supported so peers can handle it
 		"Sec-Websocket-Protocol": []string{selectedSubprotocol},
 	})
 	if err != nil {
@@ -125,50 +114,34 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := &Connection{
-		ws:      ws,
-		isProxy: isProxy,
-	}
+	// Generate unique id for connection
+	rand.Seed(time.Now().UTC().UnixNano())
+	connId := rand.Int()
 
-	sock.addConnection(conn, true)
-}
+	if isProxy {
 
-// readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (sock *NamedWebSocket) readConnectionPump(conn *Connection) {
-	defer func() {
-		sock.removeConnection(conn)
-	}()
-	conn.ws.SetReadLimit(maxMessageSize)
-	conn.ws.SetReadDeadline(time.Now().Add(pongWait))
-	conn.ws.SetPongHandler(func(string) error { conn.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
-	for {
-		_, message, err := conn.ws.ReadMessage()
-		if err != nil {
-			break
+		conn := &ProxyConnection{
+			PeerConnection: PeerConnection{
+				id: connId,
+				ws: ws,
+			},
+			writeable: true,
+			peers:     make(map[int]bool),
 		}
 
-		wsBroadcast := &Message{
-			source:  conn,
-			payload: message,
+		conn.addConnection(sock)
+
+	} else {
+
+		conn := &PeerConnection{
+			id: connId,
+			ws: ws,
 		}
 
-		sock.broadcastBuffer <- wsBroadcast
-	}
-}
+		conn.addConnection(sock)
 
-// writeConnectionPump keeps an individual websocket connection alive
-func (sock *NamedWebSocket) writeConnectionPump(conn *Connection) {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-		sock.removeConnection(conn)
-	}()
-	for {
-		select {
-		case <-ticker.C:
-			conn.write(websocket.PingMessage, []byte{})
-		}
 	}
+
 }
 
 // Send service broadcast messages on NamedWebSocket connections
@@ -180,45 +153,64 @@ func (sock *NamedWebSocket) messageDispatcher() {
 				wsBroadcast.source.write(websocket.CloseMessage, []byte{})
 				return
 			}
-			sock.broadcast(wsBroadcast)
+			// Send message to local peers
+			sock.localBroadcast(wsBroadcast)
+			// Send message to remote proxies
+			sock.remoteBroadcast(wsBroadcast)
 		}
 	}
 }
 
-// Set up a new NamedWebSocket connection instance
-func (sock *NamedWebSocket) addConnection(conn *Connection, writable bool) {
-	// Add this websocket instance to Named WebSocket broadcast list
-	if writable {
-		sock.connections = append(sock.connections, conn)
-	}
-
-	// Start connection read/write pumps
-	go sock.writeConnectionPump(conn)
-	sock.readConnectionPump(conn)
-}
-
-// Broadcast a message to all websocket connections for this NamedWebSocket
+// Broadcast a message to all peer connections for this NamedWebSocket
 // instance (except to the src websocket connection)
-func (sock *NamedWebSocket) broadcast(broadcast *Message) {
-	for _, conn := range sock.connections {
-		if conn.ws != broadcast.source.ws {
-			// don't relay broadcast messages infinitely between proxy connections
-			if conn.isProxy && broadcast.source.isProxy {
-				continue
+func (sock *NamedWebSocket) localBroadcast(broadcast *Message) {
+	// Write to peer connections
+	for _, peer := range sock.peers {
+		// don't send back to self
+		if peer.id == broadcast.source.id {
+			continue
+		}
+
+		if len(broadcast.targets) == 0 || broadcast.targets[0] == -1 {
+			peer.write(websocket.TextMessage, broadcast.payload)
+		} else {
+			for i := 0; i < len(broadcast.targets); i++ {
+				// don't send unless targets match
+				if peer.id != broadcast.targets[i] {
+					continue
+				}
+				peer.write(websocket.TextMessage, broadcast.payload)
 			}
-			conn.write(websocket.TextMessage, broadcast.payload)
 		}
 	}
 }
 
-// Tear down an existing NamedWebSocket connection instance
-func (sock *NamedWebSocket) removeConnection(conn *Connection) {
-	for i, oConn := range sock.connections {
-		if oConn.ws == conn.ws {
-			sock.connections = append(sock.connections[:i], sock.connections[i+1:]...)
-			break
-		}
+// Broadcast a message to all proxy connections for this NamedWebSocket
+// instance (except to the src websocket connection)
+func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
+	// Only send to remote proxies if this message was not received from a proxy itself
+	if broadcast.fromProxy {
+		return
 	}
 
-	conn.ws.Close()
+	// Write to proxy connections
+	for _, proxy := range sock.proxies {
+		// don't send back to self
+		// only write to *writeable* proxy connections
+		if !proxy.writeable || proxy.id == broadcast.source.id {
+			continue
+		}
+
+		if len(broadcast.targets) == 0 || broadcast.targets[0] == -1 {
+			proxy.write(websocket.TextMessage, "message", []int{-1}, broadcast.payload)
+		} else {
+			for i := 0; i < len(broadcast.targets); i++ {
+				// don't send unless targets match
+				if proxy.id != broadcast.targets[i] {
+					continue
+				}
+				proxy.write(websocket.TextMessage, "message", []int{-1}, broadcast.payload)
+			}
+		}
+	}
 }

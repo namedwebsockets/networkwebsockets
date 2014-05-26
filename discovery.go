@@ -183,13 +183,19 @@ func (ds *DiscoveryServer) Browse() {
 					return
 				}
 
-				conn := &Connection{
-					ws:      ws,
-					isProxy: true,
+				rand.Seed(time.Now().UTC().UnixNano())
+				connId := rand.Int()
+
+				conn := &ProxyConnection{
+					PeerConnection: PeerConnection{
+						id: connId,
+						ws: ws,
+					},
+					writeable: false,
+					peers:     make(map[int]bool),
 				}
 
-				// Don't block discovery process
-				go sock.addConnection(conn, false)
+				conn.addConnection(sock)
 
 				registeredServiceNames[shortName] = true
 
