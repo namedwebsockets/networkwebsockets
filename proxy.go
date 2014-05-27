@@ -1,7 +1,8 @@
-package main
+package namedwebsockets
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,22 +21,39 @@ type ProxyConnection struct {
 
 type ProxyWireMessage struct {
 	// Proxy message type: "connect", "disconnect", "ping", "message"
-	action string
+	Action string
 
 	// Recipients' id list (currently on ever -1 === send to all peers)
-	to []int
+	To []int
 
 	// Raw message contents
-	payload []byte
+	Payload []byte
+}
+
+func NewProxyConnection(socket *websocket.Conn, isWriteable bool) *ProxyConnection {
+	// Generate unique id for connection
+	rand.Seed(time.Now().UTC().UnixNano())
+	connId := rand.Int()
+
+	proxyConn := &ProxyConnection{
+		PeerConnection: PeerConnection{
+			id: connId,
+			ws: socket,
+		},
+		writeable: isWriteable,
+		peers:     make(map[int]bool),
+	}
+
+	return proxyConn
 }
 
 // Send a message to the target websocket connection
 func (proxy *ProxyConnection) write(mt int, action string, targets []int, payload []byte) {
 	// Construct proxy wire message
 	m := ProxyWireMessage{
-		action:  action,
-		to:      targets,
-		payload: payload,
+		Action:  action,
+		To:      targets,
+		Payload: payload,
 	}
 	messagePayload, err := json.Marshal(m)
 	if err != nil {
@@ -71,23 +89,23 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 			continue
 		}
 
-		switch message.action {
+		switch message.Action {
 
 		case "connect":
 
-			proxy.peers[message.to[0]] = true
+			proxy.peers[message.To[0]] = true
 
 		case "disconnect":
 
-			delete(proxy.peers, message.to[0])
+			delete(proxy.peers, message.To[0])
 
 		case "message":
 
 			// Broadcast message on to given targets
 			wsBroadcast := &Message{
 				source:    &proxy.PeerConnection,
-				targets:   message.to,
-				payload:   message.payload,
+				targets:   message.To,
+				payload:   message.Payload,
 				fromProxy: true,
 			}
 

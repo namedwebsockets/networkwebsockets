@@ -29,15 +29,15 @@ Optionally you can build this project from the source files contained in this re
 
 2. Download this repository and its dependencies using `go get`:
 
-        go get github.com/richtr/namedwebsockets
+        go get github.com/richtr/namedwebsockets/cmd
 
 3. Locate and change directory to the newly downloaded repository:
 
-        cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
+        cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets/cmd`
 
 4. Run your Named WebSockets Proxy:
 
-        go run *.go
+        go run run.go
 
 At this point your Named WebSockets Proxy should be up and ready for usage at `localhost:9009`!
 

@@ -14,13 +14,4 @@ If any files in this folder change they need re-packing with the following comma
     cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
     go-bindata -ignore=README\\.md -o templates.go _templates/
 
-Alternatively, if you want to use the raw template files in this directory while in development mode you can use a `-debug` flag in your `go-bindata` command:
-
-    cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets`
-		go-bindata -ignore=README\\.md -o templates.go -debug _templates/
-
-Make sure to switch back to normal template compilation before committing template changes back to this repo:
-
-    go-bindata -ignore=README\\.md -o templates.go _templates/
-
 For more information, please consult the go-bindata [README](https://github.com/jteeuwen/go-bindata/blob/master/README.md).

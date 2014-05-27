@@ -1,8 +1,7 @@
-package main
+package namedwebsockets
 
 import (
 	"log"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -49,7 +48,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // Create a new NamedWebSocket instance (local or broadcast-based) with a given service type
-func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
+func NewNamedWebSocket(serviceName string, isBroadcast bool, port int) *NamedWebSocket {
 	scope := "broadcast"
 	if isBroadcast == false {
 		scope = "local"
@@ -64,19 +63,19 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool) *NamedWebSocket {
 
 	go sock.messageDispatcher()
 
-	log.Printf("New %s web socket '%s' created.", scope, serviceName)
+	log.Printf("New %s websocket '%s' created.", scope, serviceName)
 
 	if isBroadcast {
-		go sock.advertise()
+		go sock.advertise(port)
 	}
 
 	return sock
 }
 
-func (sock *NamedWebSocket) advertise() {
+func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryClient == nil {
 		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceName)
+		sock.discoveryClient = NewDiscoveryClient(sock.serviceName, port)
 	}
 }
 
@@ -114,31 +113,15 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique id for connection
-	rand.Seed(time.Now().UTC().UnixNano())
-	connId := rand.Int()
-
 	if isProxy {
 
-		conn := &ProxyConnection{
-			PeerConnection: PeerConnection{
-				id: connId,
-				ws: ws,
-			},
-			writeable: true,
-			peers:     make(map[int]bool),
-		}
-
-		conn.addConnection(sock)
+		proxyConn := NewProxyConnection(ws, true)
+		proxyConn.addConnection(sock)
 
 	} else {
 
-		conn := &PeerConnection{
-			id: connId,
-			ws: ws,
-		}
-
-		conn.addConnection(sock)
+		peerConn := NewPeerConnection(ws)
+		peerConn.addConnection(sock)
 
 	}
 
@@ -205,11 +188,10 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 			proxy.write(websocket.TextMessage, "message", []int{-1}, broadcast.payload)
 		} else {
 			for i := 0; i < len(broadcast.targets); i++ {
-				// don't send unless targets match
-				if proxy.id != broadcast.targets[i] {
-					continue
+				// If this proxy manages one of the targets, forward this message to this proxy
+				if proxy.peers[broadcast.targets[i]] {
+					proxy.write(websocket.TextMessage, "message", broadcast.targets, broadcast.payload)
 				}
-				proxy.write(websocket.TextMessage, "message", []int{-1}, broadcast.payload)
 			}
 		}
 	}

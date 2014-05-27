@@ -1,6 +1,7 @@
-package main
+package namedwebsockets
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -26,6 +27,19 @@ type Message struct {
 
 	// Whether this message originated from a ProxyConnection object
 	fromProxy bool
+}
+
+func NewPeerConnection(socket *websocket.Conn) *PeerConnection {
+	// Generate unique id for connection
+	rand.Seed(time.Now().UTC().UnixNano())
+	connId := rand.Int()
+
+	peerConn := &PeerConnection{
+		id: connId,
+		ws: socket,
+	}
+
+	return peerConn
 }
 
 // Send a message to the target websocket connection

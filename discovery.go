@@ -1,4 +1,4 @@
-package main
+package namedwebsockets
 
 import (
 	"fmt"
@@ -23,12 +23,14 @@ var NetworkServiceMatcher = regexp.MustCompile("^([A-Za-z0-9\\._-]{1,255})\\[[0-
 
 type DiscoveryClient struct {
 	serviceType string
+	Port        int
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceType string) *DiscoveryClient {
+func NewDiscoveryClient(serviceType string, port int) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
 		serviceType: serviceType,
+		Port:        port,
 	}
 
 	discoveryClient.Register("local")
@@ -46,7 +48,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 		Instance: dnssdServiceName,
 		Service:  "_ws._tcp",
 		Domain:   domain,
-		Port:     LocalPort,
+		Port:     dc.Port,
 		Info:     fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
 	}
 	if err := s.Init(); err != nil {
@@ -62,7 +64,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 
 	advertisedServiceNames[dnssdServiceName] = true
 
-	log.Printf("Proxy web socket advertised as '%s' in %s", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
+	log.Printf("Broadcast websocket advertised as '%s' in %s network", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
 }
 
 func (dc *DiscoveryClient) Shutdown() {
@@ -74,18 +76,9 @@ func (dc *DiscoveryClient) Shutdown() {
 /** DISCOVERYSERVER interface **/
 
 type DiscoveryServer struct {
+	Host   string
+	Port   int
 	closed bool
-}
-
-func StartDiscoveryServer() {
-	discoveryServer := &DiscoveryServer{}
-	defer discoveryServer.Close()
-
-	log.Print("Listening for BroadcastWebSocket proxies in network...")
-
-	for !discoveryServer.closed {
-		discoveryServer.Browse()
-	}
 }
 
 func (ds *DiscoveryServer) Browse() {
@@ -168,34 +161,24 @@ func (ds *DiscoveryServer) Browse() {
 				// Resolve websocket connection
 				sock := namedWebSockets[servicePath]
 				if sock == nil {
-					sock = NewNamedWebSocket(serviceName, true)
+					sock = NewNamedWebSocket(serviceName, true, ds.Port)
 					namedWebSockets[servicePath] = sock
 				}
 
-				log.Printf("Establishing proxy web socket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+				log.Printf("Establishing proxy broadcast websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
 				ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-					"Origin":                     []string{LocalHost},
+					"Origin":                     []string{ds.Host},
 					"X-BroadcastWebSocket-Proxy": []string{"true"},
 				})
 				if nErr != nil {
-					log.Printf("Proxy web socket connection failed: %s", nErr)
+					log.Printf("Proxy broadcast websocket connection failed: %s", nErr)
 					return
 				}
 
-				rand.Seed(time.Now().UTC().UnixNano())
-				connId := rand.Int()
+				proxyConn := NewProxyConnection(ws, false)
 
-				conn := &ProxyConnection{
-					PeerConnection: PeerConnection{
-						id: connId,
-						ws: ws,
-					},
-					writeable: false,
-					peers:     make(map[int]bool),
-				}
-
-				conn.addConnection(sock)
+				proxyConn.addConnection(sock)
 
 				registeredServiceNames[shortName] = true
 
@@ -212,6 +195,6 @@ func (ds *DiscoveryServer) Browse() {
 	}
 }
 
-func (ds *DiscoveryServer) Close() {
+func (ds *DiscoveryServer) Shutdown() {
 	ds.closed = true
 }
