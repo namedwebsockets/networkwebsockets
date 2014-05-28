@@ -1,7 +1,6 @@
 package namedwebsockets
 
 import (
-	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,25 +16,21 @@ type PeerConnection struct {
 
 type Message struct {
 	// The source peer connection of the message
-	source *PeerConnection
+	source int
 
-	// The destination peer connection id targets
-	targets []int
+	// The destination peer connection id target
+	target int
 
 	// The message payload
-	payload []byte
+	payload string
 
 	// Whether this message originated from a ProxyConnection object
 	fromProxy bool
 }
 
-func NewPeerConnection(socket *websocket.Conn) *PeerConnection {
-	// Generate unique id for connection
-	rand.Seed(time.Now().UTC().UnixNano())
-	connId := rand.Int()
-
+func NewPeerConnection(id int, socket *websocket.Conn) *PeerConnection {
 	peerConn := &PeerConnection{
-		id: connId,
+		id: id,
 		ws: socket,
 	}
 
@@ -43,9 +38,9 @@ func NewPeerConnection(socket *websocket.Conn) *PeerConnection {
 }
 
 // Send a message to the target websocket connection
-func (conn *PeerConnection) write(mt int, payload []byte) {
+func (conn *PeerConnection) send(payload string) {
 	conn.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	conn.ws.WriteMessage(mt, payload)
+	conn.ws.WriteMessage(websocket.TextMessage, []byte(payload))
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
@@ -57,15 +52,15 @@ func (peer *PeerConnection) readConnectionPump(sock *NamedWebSocket) {
 	peer.ws.SetReadDeadline(time.Now().Add(pongWait))
 	peer.ws.SetPongHandler(func(string) error { peer.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		_, message, err := peer.ws.ReadMessage()
-		if err != nil {
+		opCode, message, err := peer.ws.ReadMessage()
+		if err != nil || opCode != websocket.TextMessage {
 			break
 		}
 
 		wsBroadcast := &Message{
-			source:    peer,
-			targets:   []int{-1}, // target all connections
-			payload:   message,
+			source:    peer.id,
+			target:    -1, // target all connections
+			payload:   string(message),
 			fromProxy: false,
 		}
 
@@ -83,7 +78,8 @@ func (peer *PeerConnection) writeConnectionPump(sock *NamedWebSocket) {
 	for {
 		select {
 		case <-ticker.C:
-			peer.write(websocket.PingMessage, []byte{})
+			peer.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			peer.ws.WriteMessage(websocket.PingMessage, []byte{})
 		}
 	}
 }
@@ -93,10 +89,18 @@ func (peer *PeerConnection) addConnection(sock *NamedWebSocket) {
 	// Add this websocket instance to Named WebSocket broadcast list
 	sock.peers = append(sock.peers, peer)
 
-	// Inform all proxy connections that we own this peer connection
+	// Inform all control connections that we now own this peer connection
+	for _, control := range sock.controllers {
+		// don't notify controller if its id matches the peer's id
+		if control.id != peer.id {
+			control.send("connect", control.id, peer.id, "")
+		}
+	}
+
+	// Inform all proxy connections that we now own this peer connection
 	for _, proxy := range sock.proxies {
 		if proxy.writeable {
-			proxy.write(websocket.TextMessage, "connect", []int{peer.id}, []byte{})
+			proxy.send("connect", proxy.id, peer.id, "")
 		}
 	}
 
@@ -114,10 +118,26 @@ func (peer *PeerConnection) removeConnection(sock *NamedWebSocket) {
 		}
 	}
 
+	// Find associated control connection and close also
+	for _, control := range sock.controllers {
+		if control.id == peer.id {
+			control.removeConnection(sock)
+			break
+		}
+	}
+
+	// Inform all control connections that we no longer own this peer connection
+	for _, control := range sock.controllers {
+		// don't notify controller if its id matches the peer's id
+		if control.id != peer.id {
+			control.send("disconnect", control.id, peer.id, "")
+		}
+	}
+
 	// Inform all proxy connections that we no longer own this peer connection
 	for _, proxy := range sock.proxies {
 		if proxy.writeable {
-			proxy.write(websocket.TextMessage, "disconnect", []int{peer.id}, []byte{})
+			proxy.send("disconnect", proxy.id, peer.id, "")
 		}
 	}
 

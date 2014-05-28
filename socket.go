@@ -26,6 +26,9 @@ const (
 type NamedWebSocket struct {
 	serviceName string
 
+	// The current websocket connection control instances to this named websocket
+	controllers []*ControlConnection
+
 	// The current websocket connection instances to this named websocket
 	peers []*PeerConnection
 
@@ -56,6 +59,7 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool, port int) *NamedWeb
 
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
+		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
 		broadcastBuffer: make(chan *Message, 512),
@@ -80,7 +84,7 @@ func (sock *NamedWebSocket) advertise(port int) {
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
+func (sock *NamedWebSocket) serveService(w http.ResponseWriter, r *http.Request, id int) {
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
@@ -92,6 +96,37 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		isProxy = true
 	}
 
+	ws, err := sock.upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, "Not found", 404)
+	}
+
+	if isProxy {
+		proxyConn := NewProxyConnection(id, ws, true)
+		proxyConn.addConnection(sock)
+	} else {
+		peerConn := NewPeerConnection(id, ws)
+		peerConn.addConnection(sock)
+	}
+}
+
+// Set up a new web socket connection
+func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id int) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	ws, err := sock.upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, "Not found", 404)
+	}
+
+	controlConn := NewControlConnection(id, ws)
+	controlConn.addConnection(sock)
+}
+
+func (sock *NamedWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
 	// Chose a subprotocol from those offered in the client request
 	selectedSubprotocol := ""
 	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
@@ -110,21 +145,10 @@ func (sock *NamedWebSocket) serve(w http.ResponseWriter, r *http.Request) {
 		if _, ok := err.(websocket.HandshakeError); !ok {
 			log.Println(err)
 		}
-		return
+		return nil, err
 	}
 
-	if isProxy {
-
-		proxyConn := NewProxyConnection(ws, true)
-		proxyConn.addConnection(sock)
-
-	} else {
-
-		peerConn := NewPeerConnection(ws)
-		peerConn.addConnection(sock)
-
-	}
-
+	return ws, nil
 }
 
 // Send service broadcast messages on NamedWebSocket connections
@@ -133,7 +157,6 @@ func (sock *NamedWebSocket) messageDispatcher() {
 		select {
 		case wsBroadcast, ok := <-sock.broadcastBuffer:
 			if !ok {
-				wsBroadcast.source.write(websocket.CloseMessage, []byte{})
 				return
 			}
 			// Send message to local peers
@@ -150,21 +173,16 @@ func (sock *NamedWebSocket) localBroadcast(broadcast *Message) {
 	// Write to peer connections
 	for _, peer := range sock.peers {
 		// don't send back to self
-		if peer.id == broadcast.source.id {
+		if peer.id == broadcast.source {
 			continue
 		}
 
-		if len(broadcast.targets) == 0 || broadcast.targets[0] == -1 {
-			peer.write(websocket.TextMessage, broadcast.payload)
-		} else {
-			for i := 0; i < len(broadcast.targets); i++ {
-				// don't send unless targets match
-				if peer.id != broadcast.targets[i] {
-					continue
-				}
-				peer.write(websocket.TextMessage, broadcast.payload)
-			}
+		if broadcast.target == -1 {
+			peer.send(broadcast.payload)
+		} else if peer.id == broadcast.target {
+			peer.send(broadcast.payload)
 		}
+
 	}
 }
 
@@ -180,19 +198,15 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 	for _, proxy := range sock.proxies {
 		// don't send back to self
 		// only write to *writeable* proxy connections
-		if !proxy.writeable || proxy.id == broadcast.source.id {
+		if !proxy.writeable || proxy.id == broadcast.source {
 			continue
 		}
 
-		if len(broadcast.targets) == 0 || broadcast.targets[0] == -1 {
-			proxy.write(websocket.TextMessage, "message", []int{-1}, broadcast.payload)
-		} else {
-			for i := 0; i < len(broadcast.targets); i++ {
-				// If this proxy manages one of the targets, forward this message to this proxy
-				if proxy.peers[broadcast.targets[i]] {
-					proxy.write(websocket.TextMessage, "message", broadcast.targets, broadcast.payload)
-				}
-			}
+		if broadcast.target == -1 {
+			proxy.send("message", proxy.id, -1, broadcast.payload)
+		} else if proxy.peers[broadcast.target] {
+			proxy.send("message", proxy.id, broadcast.target, broadcast.payload)
 		}
+
 	}
 }

@@ -149,11 +149,15 @@ func (ds *DiscoveryServer) Browse() {
 					}
 				}
 
+				// Generate unique id for connection
+				rand.Seed(time.Now().UTC().UnixNano())
+				newPeerId := rand.Int()
+
 				// Build URL
 				remoteWSUrl := &url.URL{
 					Scheme: "ws",
 					Host:   fmt.Sprintf("%s:%d", e.Host, e.Port),
-					Path:   servicePath,
+					Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
 				}
 
 				serviceName := path.Base(servicePath)
@@ -176,7 +180,7 @@ func (ds *DiscoveryServer) Browse() {
 					return
 				}
 
-				proxyConn := NewProxyConnection(ws, false)
+				proxyConn := NewProxyConnection(newPeerId, ws, false)
 
 				proxyConn.addConnection(sock)
 

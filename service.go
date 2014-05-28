@@ -5,14 +5,28 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"path"
 	"regexp"
+	"strconv"
+	"strings"
 	"text/template"
 )
 
-var ValidServiceName = regexp.MustCompile("^[A-Za-z0-9\\._-]{1,255}$")
+var (
+	// Master list of all Named WebSocket services (local or broadcast) that we are aware of
+	namedWebSockets = map[string]*NamedWebSocket{}
 
-var namedWebSockets = map[string]*NamedWebSocket{}
+	// Regular expression matchers
+
+	serviceNameRegexStr = "[A-Za-z0-9\\._-]{1,255}"
+
+	peerIdRegexStr = "[0-9]{4,}"
+
+	isBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(.*/broadcast/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+
+	isControlRequest = regexp.MustCompile(fmt.Sprintf("(/control/(broadcast|local)/%s/%s)", serviceNameRegexStr, peerIdRegexStr))
+
+	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
+)
 
 type NamedWebSocket_Service struct {
 	Host string
@@ -37,6 +51,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	// Serve the web socket creation endpoints
 	http.HandleFunc("/local/", service.serveWSCreator)
 	http.HandleFunc("/broadcast/", service.serveWSCreator)
+	http.HandleFunc("/control/", service.serveWSCreator)
 
 	log.Printf("Serving Named WebSockets Proxy at http://%s:%d/", service.Host, service.Port)
 	log.Printf("(test console available @ http://localhost:%d/console)", service.Port)
@@ -108,27 +123,40 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 		return
 	}
 
-	isBroadcast, err := path.Match("/broadcast/*", r.URL.Path)
-	if err != nil {
-		http.Error(w, "Internal Server Error", 501)
-		return
+	isBroadcast := isBroadcastRequest.MatchString(r.URL.Path)
+	isControl := isControlRequest.MatchString(r.URL.Path)
+
+	pathParts := strings.Split(r.URL.Path, "/")
+
+	peerIdStr := pathParts[len(pathParts)-1]
+	serviceName := pathParts[len(pathParts)-2]
+
+	// Remove trailing peerId from service path
+	servicePath := fmt.Sprintf("%s", strings.Join(pathParts[0:len(pathParts)-1], "/"))
+
+	// Remove leading "/control" from service path if this is a control request
+	if isControl {
+		servicePath = fmt.Sprintf("/%s", strings.Join(pathParts[2:len(pathParts)-1], "/"))
 	}
 
-	// Create a new websocket service at URL
-	serviceName := path.Base(r.URL.Path)
-
-	if isValid := ValidServiceName.MatchString(serviceName); !isValid {
+	if isValid := isValidServiceName.MatchString(serviceName); !isValid {
 		http.Error(w, "Not found", 404)
 		return
 	}
 
 	// Resolve websocket connection (also, split Local and Broadcast types with the same name)
-	sock := namedWebSockets[r.URL.Path]
+	sock := namedWebSockets[servicePath]
 	if sock == nil {
 		sock = NewNamedWebSocket(serviceName, isBroadcast, service.Port)
-		namedWebSockets[r.URL.Path] = sock
+		namedWebSockets[servicePath] = sock
 	}
 
+	peerId, _ := strconv.Atoi(peerIdStr)
+
 	// Handle websocket connection
-	sock.serve(w, r)
+	if isControl {
+		sock.serveControl(w, r, peerId)
+	} else {
+		sock.serveService(w, r, peerId)
+	}
 }

@@ -2,7 +2,7 @@ package namedwebsockets
 
 import (
 	"encoding/json"
-	"math/rand"
+	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,24 +20,22 @@ type ProxyConnection struct {
 }
 
 type ProxyWireMessage struct {
-	// Proxy message type: "connect", "disconnect", "ping", "message"
+	// Proxy message type: "connect", "disconnect", "message", "privatemessage"
 	Action string
 
+	Source int
+
 	// Recipients' id list (currently on ever -1 === send to all peers)
-	To []int
+	Target int
 
 	// Raw message contents
-	Payload []byte
+	Payload string
 }
 
-func NewProxyConnection(socket *websocket.Conn, isWriteable bool) *ProxyConnection {
-	// Generate unique id for connection
-	rand.Seed(time.Now().UTC().UnixNano())
-	connId := rand.Int()
-
+func NewProxyConnection(id int, socket *websocket.Conn, isWriteable bool) *ProxyConnection {
 	proxyConn := &ProxyConnection{
 		PeerConnection: PeerConnection{
-			id: connId,
+			id: id,
 			ws: socket,
 		},
 		writeable: isWriteable,
@@ -48,11 +46,12 @@ func NewProxyConnection(socket *websocket.Conn, isWriteable bool) *ProxyConnecti
 }
 
 // Send a message to the target websocket connection
-func (proxy *ProxyConnection) write(mt int, action string, targets []int, payload []byte) {
+func (proxy *ProxyConnection) send(action string, source int, target int, payload string) {
 	// Construct proxy wire message
 	m := ProxyWireMessage{
 		Action:  action,
-		To:      targets,
+		Source:  source,
+		Target:  target,
 		Payload: payload,
 	}
 	messagePayload, err := json.Marshal(m)
@@ -61,7 +60,7 @@ func (proxy *ProxyConnection) write(mt int, action string, targets []int, payloa
 	}
 
 	proxy.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	proxy.ws.WriteMessage(mt, messagePayload)
+	proxy.ws.WriteMessage(websocket.TextMessage, messagePayload)
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
@@ -73,14 +72,9 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 	proxy.ws.SetReadDeadline(time.Now().Add(pongWait))
 	proxy.ws.SetPongHandler(func(string) error { proxy.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		_, buf, err := proxy.ws.ReadMessage()
-		if err != nil {
+		opCode, buf, err := proxy.ws.ReadMessage()
+		if err != nil || opCode != websocket.TextMessage {
 			break
-		}
-
-		// Writeable proxies should not be receiving or relaying messages onwards
-		if proxy.writeable {
-			continue
 		}
 
 		var message ProxyWireMessage
@@ -93,23 +87,50 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 
 		case "connect":
 
-			proxy.peers[message.To[0]] = true
+			proxy.peers[message.Target] = true
+
+			// Inform all control connections that this proxy owns this peer connection
+			for _, control := range sock.controllers {
+				control.send("connect", control.id, message.Target, "")
+			}
 
 		case "disconnect":
 
-			delete(proxy.peers, message.To[0])
+			delete(proxy.peers, message.Target)
+
+			// Inform all control connections that this proxy no longer owns this peer connection
+			for _, control := range sock.controllers {
+				control.send("disconnect", control.id, message.Target, "")
+			}
 
 		case "message":
 
-			// Broadcast message on to given targets
+			// Broadcast message on to given target
 			wsBroadcast := &Message{
-				source:    &proxy.PeerConnection,
-				targets:   message.To,
+				source:    message.Source,
+				target:    message.Target,
 				payload:   message.Payload,
 				fromProxy: true,
 			}
 
 			sock.broadcastBuffer <- wsBroadcast
+
+		case "privatemessage":
+
+			messageSent := false
+
+			// Relay message to control channel that matches target
+			for _, control := range sock.controllers {
+				if control.id == message.Target {
+					control.send("message", message.Target, message.Source, message.Payload)
+					messageSent = true
+					break
+				}
+			}
+
+			if !messageSent {
+				fmt.Errorf("P2P message target could not be found. Not sent.")
+			}
 
 		}
 	}
@@ -125,7 +146,8 @@ func (proxy *ProxyConnection) writeConnectionPump(sock *NamedWebSocket) {
 	for {
 		select {
 		case <-ticker.C:
-			proxy.write(websocket.PingMessage, "ping", []int{-1}, []byte{})
+			proxy.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			proxy.ws.WriteMessage(websocket.PingMessage, []byte{})
 		}
 	}
 }
@@ -137,7 +159,7 @@ func (proxy *ProxyConnection) addConnection(sock *NamedWebSocket) {
 	if proxy.writeable {
 		// Inform this proxy of all the peer connections we own
 		for _, peer := range sock.peers {
-			proxy.write(websocket.TextMessage, "connect", []int{peer.id}, []byte{})
+			proxy.send("connect", proxy.id, peer.id, "")
 		}
 	}
 
@@ -158,7 +180,7 @@ func (proxy *ProxyConnection) removeConnection(sock *NamedWebSocket) {
 	if proxy.writeable {
 		// Inform this proxy of all the peer connections we no longer own
 		for _, peer := range sock.peers {
-			proxy.write(websocket.TextMessage, "disconnect", []int{peer.id}, []byte{})
+			proxy.send("disconnect", proxy.id, peer.id, "")
 		}
 	}
 
