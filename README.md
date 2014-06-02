@@ -23,17 +23,17 @@ You can download and run the latest pre-built version of the Named WebSockets Pr
 
 #### Build from source
 
-Optionally you can build this project from the source files contained in this repository with the following instructions:
+Optionally you can run a Named WebSockets Proxy from the latest source files contained in this repository with the following instructions:
 
 1. [Install go](http://golang.org/doc/install).
 
 2. Download this repository and its dependencies using `go get`:
 
-        go get github.com/richtr/namedwebsockets/cmd
+        go get github.com/richtr/cmd/namedwebsockets
 
 3. Locate and change directory to the newly downloaded repository:
 
-        cd `go list -f '{{.Dir}}' github.com/richtr/namedwebsockets/cmd`
+        cd `go list -f '{{.Dir}}' github.com/richtr/cmd/namedwebsockets`
 
 4. Run your Named WebSockets Proxy:
 
