@@ -176,13 +176,7 @@ func (sock *NamedWebSocket) localBroadcast(broadcast *Message) {
 		if peer.id == broadcast.source {
 			continue
 		}
-
-		if broadcast.target == -1 {
-			peer.send(broadcast.payload)
-		} else if peer.id == broadcast.target {
-			peer.send(broadcast.payload)
-		}
-
+		peer.send(broadcast.payload)
 	}
 }
 
@@ -201,12 +195,6 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 		if !proxy.writeable || proxy.id == broadcast.source {
 			continue
 		}
-
-		if broadcast.target == -1 {
-			proxy.send("message", proxy.id, -1, broadcast.payload)
-		} else if proxy.peers[broadcast.target] {
-			proxy.send("message", proxy.id, broadcast.target, broadcast.payload)
-		}
-
+		proxy.send("message", broadcast.source, 0, broadcast.payload)
 	}
 }

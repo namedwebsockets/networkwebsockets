@@ -59,7 +59,7 @@ func (peer *PeerConnection) readConnectionPump(sock *NamedWebSocket) {
 
 		wsBroadcast := &Message{
 			source:    peer.id,
-			target:    -1, // target all connections
+			target:    0, // target all connections
 			payload:   string(message),
 			fromProxy: false,
 		}

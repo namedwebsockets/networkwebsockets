@@ -20,12 +20,12 @@ type ProxyConnection struct {
 }
 
 type ProxyWireMessage struct {
-	// Proxy message type: "connect", "disconnect", "message", "privatemessage"
+	// Proxy message type: "connect", "disconnect", "message", "directmessage"
 	Action string
 
 	Source int
 
-	// Recipients' id list (currently on ever -1 === send to all peers)
+	// Recipients' id list (0 === send to all peers)
 	Target int
 
 	// Raw message contents
@@ -108,14 +108,14 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 			// Broadcast message on to given target
 			wsBroadcast := &Message{
 				source:    message.Source,
-				target:    message.Target,
+				target:    0, // target all connections
 				payload:   message.Payload,
 				fromProxy: true,
 			}
 
 			sock.broadcastBuffer <- wsBroadcast
 
-		case "privatemessage":
+		case "directmessage":
 
 			messageSent := false
 

@@ -93,7 +93,7 @@ func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
 				// Hunt for target in known proxies
 				for _, proxy := range sock.proxies {
 					if proxy.peers[message.Target] {
-						proxy.send("privatemessage", control.id, message.Target, message.Payload)
+						proxy.send("directmessage", control.id, message.Target, message.Payload)
 						messageSent = true
 						break
 					}
