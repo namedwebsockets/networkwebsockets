@@ -292,7 +292,7 @@
 							break;
 						case "message":
 							// Use Source address to match up to target
-							var ws = p2pWebSockets[data.Target];
+							var ws = p2pWebSockets[data.Source];
 							if (ws) {
 								// Re-encode data payload as string
 								var payload = data.Payload;
@@ -304,7 +304,7 @@
 								ws.__handleEvent({
 									type: "message",
 									message: payload,
-									senderId: data.Target
+									senderId: data.Source
 								});
 							}
 
@@ -444,7 +444,7 @@
 					for (var i = 0; i < namedsocket.peers.length; i++) {
 						if (namedsocket.peers[i].id == selectedTargetId) {
 							namedsocket.peers[i].send(message);
-							log('PRIVATE SENT: ' + message);
+							log('PRIVATE SENT TO [' + namedsocket.peers[i].id + ']: ' + message);
 							break;
 						}
 					}

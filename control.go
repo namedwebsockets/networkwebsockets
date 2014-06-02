@@ -83,7 +83,7 @@ func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
 			// Relay message to control channel that matches target
 			for _, _control := range sock.controllers {
 				if _control.id == message.Target {
-					_control.send("message", message.Target, control.id, message.Payload)
+					_control.send("message", control.id, message.Target, message.Payload)
 					messageSent = true
 					break
 				}
@@ -95,6 +95,7 @@ func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
 					if proxy.peers[message.Target] {
 						proxy.send("privatemessage", control.id, message.Target, message.Payload)
 						messageSent = true
+						break
 					}
 				}
 			}

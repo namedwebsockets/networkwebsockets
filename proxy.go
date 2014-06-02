@@ -122,7 +122,7 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 			// Relay message to control channel that matches target
 			for _, control := range sock.controllers {
 				if control.id == message.Target {
-					control.send("message", message.Target, message.Source, message.Payload)
+					control.send("message", message.Source, message.Target, message.Payload)
 					messageSent = true
 					break
 				}
