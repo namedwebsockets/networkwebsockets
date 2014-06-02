@@ -72,24 +72,24 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	// Only allow access from localhost
-	if r.Host != fmt.Sprintf("localhost:%d", service.Port) && r.Host != fmt.Sprintf("127.0.0.1:%d", service.Port) {
-		http.Error(w, fmt.Sprintf("<h2>Permission denied.</h2>\n\n<p>Named WebSockets Test Console is only accessible from <a href=\"http://localhost:%d/console\">http://localhost:%d/console</a></p>", service.Port, service.Port), 403)
-		return
-	}
-
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
 	}
 
 	if r.URL.Path == "/" {
-		fmt.Fprint(w, "<h2>Named WebSockets Proxy is running!</h2>")
+		fmt.Fprint(w, "<h2>A Named WebSockets Proxy is running on this host</h2>")
 		return
 	}
 
 	if r.URL.Path != "/console" {
 		http.Error(w, "Not found", 404)
+		return
+	}
+
+	// Only allow console access from localhost
+	if r.Host != fmt.Sprintf("localhost:%d", service.Port) && r.Host != fmt.Sprintf("127.0.0.1:%d", service.Port) {
+		http.Error(w, fmt.Sprintf("Named WebSockets Test Console is only accessible from the local machine (i.e http://localhost:%d/console)", service.Port), 403)
 		return
 	}
 
