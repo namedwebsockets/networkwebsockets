@@ -3,7 +3,6 @@ package namedwebsockets
 import (
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -31,32 +30,25 @@ var (
 type NamedWebSocket_Service struct {
 	Host string
 	Port int
-
-	listener *net.Listener
 }
 
 func (service *NamedWebSocket_Service) StartHTTPServer() {
-
-	// Listen on all ports (public + loopback addresses)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", service.Port))
-	if err != nil {
-		log.Fatal("Could not bind address. ", err)
-	}
-
-	service.listener = &listener
+	// Create a new custom http server multiplexer
+	serveMux := http.NewServeMux()
 
 	// Serve the test console
-	http.HandleFunc("/", service.serveConsoleTemplate)
+	serveMux.HandleFunc("/", service.serveConsoleTemplate)
 
 	// Serve the web socket creation endpoints
-	http.HandleFunc("/local/", service.serveWSCreator)
-	http.HandleFunc("/broadcast/", service.serveWSCreator)
-	http.HandleFunc("/control/", service.serveWSCreator)
+	serveMux.HandleFunc("/local/", service.serveWSCreator)
+	serveMux.HandleFunc("/broadcast/", service.serveWSCreator)
+	serveMux.HandleFunc("/control/", service.serveWSCreator)
 
 	log.Printf("Serving Named WebSockets Proxy at http://%s:%d/", service.Host, service.Port)
 	log.Printf("(test console available @ http://localhost:%d/console)", service.Port)
 
-	if err := http.Serve(*service.listener, nil); err != nil {
+	// Listen and serve on all ports (public + loopback addresses)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", service.Port), serveMux); err != nil {
 		log.Fatal("Could not serve proxy. ", err)
 	}
 }
