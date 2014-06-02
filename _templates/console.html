@@ -381,6 +381,11 @@
 
 				document.getElementById('name').setAttribute("disabled", "disabled");
 				document.getElementById('connectBtn').setAttribute("disabled", "disabled");
+				var radioButtons = document.getElementsByName("namedsockettype");
+				for(var i = 0; i < radioButtons.length; i++) {
+					radioButtons[i].setAttribute("disabled", "disabled");
+				}
+
 				document.getElementById('text').removeAttribute("disabled");
 				document.getElementById('messageBtn').removeAttribute("disabled");
 				document.getElementById('disconnectBtn').removeAttribute("disabled");
@@ -398,6 +403,11 @@
 
 				document.getElementById('name').removeAttribute("disabled");
 				document.getElementById('connectBtn').removeAttribute("disabled");
+				var radioButtons = document.getElementsByName("namedsockettype");
+				for(var i = 0; i < radioButtons.length; i++) {
+					radioButtons[i].removeAttribute("disabled");
+				}
+
 				document.getElementById('text').setAttribute("disabled", "disabled");
 				document.getElementById('messageBtn').setAttribute("disabled", "disabled");
 				document.getElementById('disconnectBtn').setAttribute("disabled", "disabled");
