@@ -17,9 +17,9 @@ To create and share Named WebSockets currently requires a Named WebSockets Proxy
 
 #### Download a pre-built binary
 
-You can download and run the latest pre-built version of the Named WebSockets Proxy from the [downloads page](https://github.com/richtr/namedwebsockets/releases).
+You can download and run the latest pre-built version of the Named WebSockets Proxy from the [downloads page](https://github.com/namedwebsockets/proxy/releases).
 
-[Go to the latest downloads page](https://github.com/richtr/namedwebsockets/releases)
+[Go to the latest downloads page](https://github.com/namedwebsockets/proxy/releases)
 
 #### Build from source
 
@@ -29,11 +29,11 @@ Optionally you can run a Named WebSockets Proxy from the latest source files con
 
 2. Download this repository and its dependencies using `go get`:
 
-        go get github.com/richtr/cmd/namedwebsockets
+        go get github.com/namedwebsockets/cmd/namedwebsockets
 
 3. Locate and change directory to the newly downloaded repository:
 
-        cd `go list -f '{{.Dir}}' github.com/richtr/cmd/namedwebsockets`
+        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/cmd/namedwebsockets`
 
 4. Run your Named WebSockets Proxy:
 
@@ -51,12 +51,12 @@ Once a Named WebSockets Proxy is up and running, you can access a test console a
 
 #### JavaScript Interfaces
 
-The [Named WebSockets JavaScript polyfill library](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) exposes two new JavaScript interfaces on the root global object (e.g. `window`) for your convenience as follows:
+The [Named WebSockets JavaScript polyfill library](https://github.com/namedwebsockets/proxy/blob/master/lib/namedwebsockets.js) exposes two new JavaScript interfaces on the root global object (e.g. `window`) for your convenience as follows:
 
 * `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
 * `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
 
-You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming your [Named WebSockets JavaScript polyfill](https://github.com/richtr/namedwebsockets/blob/master/lib/namedwebsockets.js) is located at `lib/namedwebsockets.js` then that can be done in an HTML document as follows:
+You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming your [Named WebSockets JavaScript polyfill](https://github.com/namedwebsockets/proxy/blob/master/lib/namedwebsockets.js) is located at `lib/namedwebsockets.js` then that can be done in an HTML document as follows:
 
     <script src="lib/namedwebsockets.js"></script>
 
@@ -86,9 +86,9 @@ To create a new `broadcast` Named WebSocket service from anywhere on the local m
 
 Some example services built with Named WebSockets:
 
-* [Chat example](https://github.com/richtr/namedwebsockets/tree/master/examples/chat)
-* [PubSub example](https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub)
-* [WebRTC example](https://github.com/richtr/namedwebsockets/tree/master/examples/webrtc)
+* [Chat example](https://github.com/namedwebsockets/proxy/tree/master/examples/chat)
+* [PubSub example](https://github.com/namedwebsockets/proxy/tree/master/examples/pubsub)
+* [WebRTC example](https://github.com/namedwebsockets/proxy/tree/master/examples/webrtc)
 
 ### Discovery and service advertisement mechanism
 
@@ -104,9 +104,9 @@ These processes repeats on all Named WebSocket Proxies whenever they receive a p
 
 ### Feedback
 
-If you find any bugs or issues please report them on the [Named WebSockets Issue Tracker](https://github.com/richtr/namedwebsockets/issues).
+If you find any bugs or issues please report them on the [Named WebSockets Issue Tracker](https://github.com/namedwebsockets/proxy/issues).
 
-If you would like to contribute to this project please consider [forking this repo](https://github.com/richtr/namedwebsockets/fork), making your changes and then creating a new [Pull Request](https://github.com/richtr/namedwebsockets/pulls) back to the main code repository.
+If you would like to contribute to this project please consider [forking this repo](https://github.com/namedwebsockets/proxy/fork), making your changes and then creating a new [Pull Request](https://github.com/namedwebsockets/proxy/pulls) back to the main code repository.
 
 ### License
 

@@ -3,7 +3,7 @@
  * Basic Publish/Subscribe library for Named WebSockets
  * ------------------------------------------------------------------------
  * ------------------------------------------------------------------------
- * https://github.com/richtr/namedwebsockets/tree/master/examples/pubsub
+ * https://github.com/namedwebsockets/proxy/tree/master/examples/pubsub
  * ------------------------------------------------------------------------
  *
  * For an example of usage, please see `pubsub.html`.

@@ -1,11 +1,11 @@
 Named WebSockets Chat Demo
 ===
 
-A simple chat client on top of [Named WebSockets](https://github.com/richtr/namedwebsockets).
+A simple chat client on top of [Named WebSockets](https://github.com/namedwebsockets/proxy).
 
 #### Running the example
 
-1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/richtr/namedwebsockets/blob/master/README.md#run-a-named-websockets-proxy).
+1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/namedwebsockets/proxy/blob/master/README.md#run-a-named-websockets-proxy).
 
 2. Open `chat.html` in a browser window.
 

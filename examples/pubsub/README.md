@@ -1,11 +1,11 @@
 Named WebSockets PubSub Demo
 ===
 
-A basic [publish/subscribe](https://en.wikipedia.org/wiki/Publish–subscribe_pattern) demo on top of [Named WebSockets](https://github.com/richtr/namedwebsockets).
+A basic [publish/subscribe](https://en.wikipedia.org/wiki/Publish–subscribe_pattern) demo on top of [Named WebSockets](https://github.com/namedwebsockets/proxy).
 
 #### Running the example
 
-1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/richtr/namedwebsockets/blob/master/README.md#run-a-named-websockets-proxy).
+1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/namedwebsockets/proxy/blob/master/README.md#run-a-named-websockets-proxy).
 
 2. Open `pubsub.html` in a browser window.
 
