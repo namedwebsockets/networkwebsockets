@@ -1,13 +1,13 @@
 Named WebSockets WebRTC Video/Audio Conferencing Demo
 ===
 
-A *pure* P2P audio/video conferencing demo via WebRTC on top of [Named WebSockets](https://github.com/namedwebsockets/proxy).
+A *pure* P2P audio/video conferencing demo via WebRTC on top of [Named WebSockets](https://github.com/namedwebsockets/namedwebsockets).
 
 This demo establishes a Named WebSocket to coordinate the set up of WebRTC PeerConnections between participating peers. As such, no STUN or TURN servers are required for establishment of WebRTC sessions through Named WebSockets and no centralized authorities are required to establish sessions before handing off to P2P.
 
 #### Running the example
 
-1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/namedwebsockets/proxy/blob/master/README.md#run-a-named-websockets-proxy).
+1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/namedwebsockets/namedwebsockets/blob/master/README.md#run-a-named-websockets-proxy).
 
 2. Run this folder as a server on your local machine on e.g. `localhost`. Chrome/Opera do not allow access to the webcam from `file://` URLs so this step is important.
 
@@ -15,19 +15,19 @@ This demo establishes a Named WebSocket to coordinate the set up of WebRTC PeerC
 
     With Python >= 2.4:
 
-        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/proxy`
+        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/namedwebsockets`
         cd examples/webrtc
         python -m SimpleHTTPServer 8080   # serve current folder at http://localhost:8080/
 
     With Ruby >= 1.9.2:
 
-        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/proxy`
+        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/namedwebsockets`
         cd examples/webrtc
         ruby -run -e httpd . -p 8080      # serve current folder at http://localhost:8080/
 
     With NodeJS:
 
-        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/proxy`
+        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/namedwebsockets`
         cd examples/webrtc
         npm install -g http-server        # install nodejs dependency
         http-server -p 8080               # serve current folder at http://localhost:8080/
