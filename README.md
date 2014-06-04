@@ -1,15 +1,24 @@
 «Named» WebSockets
 ===
 
-#### Dynamic WebSocket binding, management and service discovery ####
+#### Dynamic binding, peer management and local service discovery for WebSockets ####
 
-Named WebSockets is a simple and powerful way to dynamically create, bind and connect WebSocket peer connections together that share the same *service name* on a local machine or over the local network. This is useful for a variety of peer-to-peer applications such as file sharing or multi-player gaming.
+Named WebSockets is a bootstrap mechanism for creating, binding and connecting WebSocket peers together on a local machine or on a local network that share the same *service name*. Named WebSockets can be created from any web page without user authorization and are available for both web applications and native applications to create communications bridges between themselves.
 
-Any web page or application on the local device can bind themselves to shared WebSocket connections by simply requesting the same *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name you'd like).
+A web page or application can create a new Named WebSocket - a standard WebSocket - by choosing an appropriate *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name). When other web pages or applications create a Named WebSocket with the same *service type* and *service name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
 
-This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, required to manage Named WebSockets. You can [download and run this proxy](#getting-started) on your own machine to experiment with Named WebSockets following the instructions provided here.
+Named WebSockets are useful in a variety of collaborative local device and local network scenarios:
 
-Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#named-websocket-interfaces)!
+* Discover matching peer services on the local device and/or the local network.
+* Create full-duplex communications channels between native applications and web applications.
+* Create full-duplex communication channels between web pages hosted on different domains.
+* Create initial local session signalling channels for establishing P2P sessions (via e.g. [WebRTC](#examples)).
+* Provide local network multiplayer mode for games.
+* Enable collaborative editing, sharing and other forms of communication between web pages and applications on the local device and/or the local network.
+
+This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, currently required to use Named WebSockets. You can [download and run this proxy](#getting-started) on your own machine and start experimenting with Named WebSockets following the instructions provided below.
+
+Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#named-websocket-interfaces). A number of [Named WebSocket example services](#examples) are also provided to help get you started.
 
 ### Getting started
 
