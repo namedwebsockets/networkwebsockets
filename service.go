@@ -11,9 +11,6 @@ import (
 )
 
 var (
-	// Master list of all Named WebSocket services (local or broadcast) that we are aware of
-	namedWebSockets = map[string]*NamedWebSocket{}
-
 	// Regular expression matchers
 
 	serviceNameRegexStr = "[A-Za-z0-9\\._-]{1,255}"
@@ -30,6 +27,25 @@ var (
 type NamedWebSocket_Service struct {
 	Host string
 	Port int
+
+	// All Named WebSocket services (local or broadcast) that this service manages
+	namedWebSockets map[string]*NamedWebSocket
+
+	// Discovery related trackers for services advertised and registered
+	advertisedServiceNames map[string]bool
+	registeredServiceNames map[string]bool
+}
+
+func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
+	service := &NamedWebSocket_Service{
+		Host: host,
+		Port: port,
+
+		namedWebSockets:        make(map[string]*NamedWebSocket),
+		advertisedServiceNames: make(map[string]bool),
+		registeredServiceNames: make(map[string]bool),
+	}
+	return service
 }
 
 func (service *NamedWebSocket_Service) StartHTTPServer() {
@@ -64,7 +80,7 @@ func (service *NamedWebSocket_Service) StartNewDiscoveryServer() {
 	log.Print("Listening for broadcast websocket advertisements in local network...")
 
 	for !discoveryServer.closed {
-		discoveryServer.Browse()
+		discoveryServer.Browse(service)
 	}
 }
 
@@ -137,10 +153,10 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 	}
 
 	// Resolve websocket connection (also, split Local and Broadcast types with the same name)
-	sock := namedWebSockets[servicePath]
+	sock := service.namedWebSockets[servicePath]
 	if sock == nil {
-		sock = NewNamedWebSocket(serviceName, isBroadcast, service.Port)
-		namedWebSockets[servicePath] = sock
+		sock = NewNamedWebSocket(service, serviceName, isBroadcast, service.Port)
+		service.namedWebSockets[servicePath] = sock
 	}
 
 	peerId, _ := strconv.Atoi(peerIdStr)

@@ -14,8 +14,7 @@ import (
 	"github.com/richtr/mdns"
 )
 
-var advertisedServiceNames = map[string]bool{}
-var registeredServiceNames = map[string]bool{}
+// Regular expression matchers
 
 var NetworkServiceMatcher = regexp.MustCompile("^([A-Za-z0-9\\._-]{1,255})\\[[0-9]+\\]( \\([0-9]+\\))?$")
 
@@ -27,18 +26,18 @@ type DiscoveryClient struct {
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceType string, port int) *DiscoveryClient {
+func NewDiscoveryClient(service *NamedWebSocket_Service, serviceType string, port int) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
 		serviceType: serviceType,
 		Port:        port,
 	}
 
-	discoveryClient.Register("local")
+	discoveryClient.Register(service, "local")
 
 	return discoveryClient
 }
 
-func (dc *DiscoveryClient) Register(domain string) {
+func (dc *DiscoveryClient) Register(service *NamedWebSocket_Service, domain string) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -62,7 +61,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 
 	dc.server = serv
 
-	advertisedServiceNames[dnssdServiceName] = true
+	service.advertisedServiceNames[dnssdServiceName] = true
 
 	log.Printf("Broadcast websocket advertised as '%s' in %s network", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
 }
@@ -81,7 +80,7 @@ type DiscoveryServer struct {
 	closed bool
 }
 
-func (ds *DiscoveryServer) Browse() {
+func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
@@ -126,12 +125,12 @@ func (ds *DiscoveryServer) Browse() {
 				}
 
 				// Ignore our own BroadcastWebSocket services
-				if isOwned := advertisedServiceNames[shortName]; isOwned {
+				if isOwned := service.advertisedServiceNames[shortName]; isOwned {
 					continue
 				}
 
 				// Ignore previously discovered BroadcastWebSocket services
-				if isRegistered := registeredServiceNames[shortName]; isRegistered {
+				if isRegistered := service.registeredServiceNames[shortName]; isRegistered {
 					continue
 				}
 
@@ -163,10 +162,10 @@ func (ds *DiscoveryServer) Browse() {
 				serviceName := path.Base(servicePath)
 
 				// Resolve websocket connection
-				sock := namedWebSockets[servicePath]
+				sock := service.namedWebSockets[servicePath]
 				if sock == nil {
-					sock = NewNamedWebSocket(serviceName, true, ds.Port)
-					namedWebSockets[servicePath] = sock
+					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
+					service.namedWebSockets[servicePath] = sock
 				}
 
 				log.Printf("Establishing proxy broadcast websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
@@ -184,7 +183,7 @@ func (ds *DiscoveryServer) Browse() {
 
 				proxyConn.addConnection(sock)
 
-				registeredServiceNames[shortName] = true
+				service.registeredServiceNames[shortName] = true
 
 			case <-finish:
 				complete = true

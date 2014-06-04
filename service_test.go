@@ -10,18 +10,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Make a new Named WebSocket server
 func makeService(host string, port int) *NamedWebSocket_Service {
-	service := &NamedWebSocket_Service{
-		Host: host,
-		Port: port,
-	}
-	return service
+	return NewNamedWebSocketService(host, port)
 }
 
 type WSClient struct {
 	*websocket.Conn
 }
 
+// Make a new WebSocket client connection
 func makeClient(t *testing.T, host, path string, peerId int) *WSClient {
 	if peerId == 0 {
 		// Generate unique id for connection
@@ -39,8 +37,9 @@ func makeClient(t *testing.T, host, path string, peerId int) *WSClient {
 	return wsClient
 }
 
+// Send messages to broadcast channel
 func (ws *WSClient) send(t *testing.T, message string) {
-	if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := ws.SetWriteDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		t.Fatalf("SetWriteDeadline: %v", err)
 	}
 	if err := ws.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
@@ -48,9 +47,9 @@ func (ws *WSClient) send(t *testing.T, message string) {
 	}
 }
 
-// Make sure a broadcast message is sent to all peers
+// Read messages from broadcast channel
 func (ws *WSClient) recv(t *testing.T, message string) {
-	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := ws.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
 	_, p, err := ws.ReadMessage()
@@ -62,6 +61,7 @@ func (ws *WSClient) recv(t *testing.T, message string) {
 	}
 }
 
+// Send message to control channel
 func (ws *WSClient) sendDirect(t *testing.T, action string, source, target int, payload string) {
 	m := ControlWireMessage{
 		Action:  action,
@@ -77,9 +77,9 @@ func (ws *WSClient) sendDirect(t *testing.T, action string, source, target int, 
 	ws.send(t, string(messagePayload))
 }
 
-// Make sure a broadcast message is sent to all peers
+// Receive message from control channel
 func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, payload string) {
-	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := ws.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
 	_, p, err := ws.ReadMessage()
@@ -95,11 +95,16 @@ func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, 
 	if message.Action != action {
 		t.Fatalf("action=%s, want %s", message.Action, action)
 	}
+
 	if message.Source != source {
 		t.Fatalf("source=%d, want %d", message.Source, source)
 	}
-	if message.Target != target {
-		t.Fatalf("target=%d, want %d", message.Target, target)
+	// It is tricky to determine the correct target order during network service discovery
+	// as different clients will connect to each other at different times. Thus, we shall
+	// only check that the target != source. Also, we check that we receive the correct
+	// number of 'connect', 'message' and 'disconnect' messages in the individual tests.
+	if message.Target == source {
+		t.Fatalf("target=%d, don't want %d", message.Target, source)
 	}
 	if string(message.Payload) != payload {
 		t.Fatalf("message=%s, want %s", message.Payload, payload)
@@ -168,12 +173,15 @@ func TestLocalConnection_Broadcast(t *testing.T) {
 func TestNetworkConnection_Broadcast(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9022)
+	go s1.StartNewDiscoveryServer()
 	go s1.StartHTTPServer()
 
 	s2 := makeService("localhost", 9023)
+	go s2.StartNewDiscoveryServer()
 	go s2.StartHTTPServer()
 
 	s3 := makeService("localhost", 9024)
+	go s3.StartNewDiscoveryServer()
 	go s3.StartHTTPServer()
 
 	// Define connection identifiers
@@ -256,12 +264,15 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 func TestNetworkConnection_DirectMessaging(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9025)
+	go s1.StartNewDiscoveryServer()
 	go s1.StartHTTPServer()
 
 	s2 := makeService("localhost", 9026)
+	go s2.StartNewDiscoveryServer()
 	go s2.StartHTTPServer()
 
 	s3 := makeService("localhost", 9027)
+	go s3.StartNewDiscoveryServer()
 	go s3.StartHTTPServer()
 
 	// Define connection identifiers

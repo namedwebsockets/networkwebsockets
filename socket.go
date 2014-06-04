@@ -51,7 +51,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // Create a new NamedWebSocket instance (local or broadcast-based) with a given service type
-func NewNamedWebSocket(serviceName string, isBroadcast bool, port int) *NamedWebSocket {
+func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isBroadcast bool, port int) *NamedWebSocket {
 	scope := "broadcast"
 	if isBroadcast == false {
 		scope = "local"
@@ -70,16 +70,16 @@ func NewNamedWebSocket(serviceName string, isBroadcast bool, port int) *NamedWeb
 	log.Printf("New %s websocket '%s' created.", scope, serviceName)
 
 	if isBroadcast {
-		go sock.advertise(port)
+		go sock.advertise(service, port)
 	}
 
 	return sock
 }
 
-func (sock *NamedWebSocket) advertise(port int) {
+func (sock *NamedWebSocket) advertise(service *NamedWebSocket_Service, port int) {
 	if sock.discoveryClient == nil {
 		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceName, port)
+		sock.discoveryClient = NewDiscoveryClient(service, sock.serviceName, port)
 	}
 }
 
