@@ -13,7 +13,7 @@ Named WebSockets are useful in a variety of collaborative local device and local
 * Create full-duplex communications channels between native applications and web applications.
 * Create full-duplex communication channels between web pages hosted on different domains.
 * Create initial local session signalling channels for establishing P2P sessions (via e.g. [WebRTC](#examples)).
-* Provide local network multiplayer mode for games.
+* Create low latency local network multiplayer signalling channels for games.
 * Enable collaborative editing, sharing and other forms of communication between web pages and applications on the local device and/or the local network.
 
 This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, currently required to use Named WebSockets. You can [download and run this proxy](#getting-started) on your own machine and start experimenting with Named WebSockets following the instructions provided below.
