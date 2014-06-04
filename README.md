@@ -3,9 +3,9 @@
 
 #### Dynamic binding, peer management and local service discovery for WebSockets ####
 
-Named WebSockets is a bootstrap mechanism for creating, binding and connecting WebSocket peers together on a local machine or on a local network that share the same *service name*. Named WebSockets can be created from any web page without user authorization and are available for both web applications and native applications to create communications bridges between themselves.
+Named WebSockets is a bootstrap mechanism for creating, binding and connecting WebSocket peers together on a local machine or on a local network that share the same *service name*. Named WebSockets can be created from any web page and are available for both web applications and native applications to create communications bridges between and among themselves.
 
-A web page or application can create a new Named WebSocket - a standard WebSocket - by choosing an appropriate *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name). When other web pages or applications create a Named WebSocket with the same *service type* and *service name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
+A web page or application can create a new Named WebSocket - a standard WebSocket connection - by choosing an appropriate *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name) via one of the [Named WebSocket interfaces](#named-websocket-interfaces). When other web pages or applications create their own Named WebSocket connection with the same *type* and *name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
 
 Named WebSockets are useful in a variety of collaborative local device and local network scenarios:
 
