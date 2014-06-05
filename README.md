@@ -5,7 +5,7 @@
 
 Named WebSockets is a bootstrap mechanism for creating, binding and connecting WebSocket peers together on a local machine or on a local network that share the same *service name*. Named WebSockets can be created from any web page and are available for both web applications and native applications to create communications bridges between and among themselves.
 
-A web page or application can create a new Named WebSocket - a standard WebSocket connection - by choosing an appropriate *service type* (`local` or `broadcast`) and *service name* (any alphanumeric name) via one of the [Named WebSocket interfaces](#named-websocket-interfaces). When other web pages or applications create their own Named WebSocket connection with the same *type* and *name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
+A web page or application can create a new Named WebSocket - a standard WebSocket connection - by choosing an appropriate *service type* (`local` or `network`) and *service name* (any alphanumeric name) via one of the [Named WebSocket interfaces](#named-websocket-interfaces). When other web pages or applications create their own Named WebSocket connection with the same *type* and *name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
 
 Named WebSockets are useful in a variety of collaborative local device and local network scenarios:
 
@@ -18,7 +18,7 @@ Named WebSockets are useful in a variety of collaborative local device and local
 
 This repository contains the proof-of-concept _Named WebSockets Proxy_, written in Go, currently required to use Named WebSockets. You can [download and run this proxy](#getting-started) on your own machine and start experimenting with Named WebSockets following the instructions provided below.
 
-Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/broadcast Named WebSockets](#named-websocket-interfaces). A number of [Named WebSocket example services](#examples) are also provided to help get you started.
+Once you have a Named WebSockets Proxy up and running on the local machine then you are ready to [create and share your own local/network Named WebSockets](#named-websocket-interfaces). A number of [Named WebSocket example services](#examples) are also provided to help get you started.
 
 ### Getting started
 
@@ -56,14 +56,14 @@ You can now start using your Named WebSockets Proxy via any of the [Named WebSoc
 
 #### Local HTTP Test Console
 
-Once a Named WebSockets Proxy is up and running, you can access a test console and play around with both `local` and `broadcast` Named WebSockets at `http://localhost:9009/console`.
+Once a Named WebSockets Proxy is up and running, you can access a test console and play around with both `local` and `network` Named WebSockets at `http://localhost:9009/console`.
 
 #### JavaScript Interfaces
 
 The [Named WebSockets JavaScript polyfill library](https://github.com/namedwebsockets/namedwebsockets/blob/master/lib/namedwebsockets.js) exposes two new JavaScript interfaces on the root global object (e.g. `window`) for your convenience as follows:
 
 * `LocalWebSocket` for creating/binding named websockets to share on the local machine only.
-* `BroadcastWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
+* `NetworkWebSocket` for creating/binding named websockets to share both on the local machine and the local network.
 
 You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming your [Named WebSockets JavaScript polyfill](https://github.com/namedwebsockets/namedwebsockets/blob/master/lib/namedwebsockets.js) is located at `lib/namedwebsockets.js` then that can be done in an HTML document as follows:
 
@@ -74,12 +74,12 @@ You can create a new `LocalWebSocket` connection object via the JavaScript polyf
     var localWS = new LocalWebSocket("myServiceName");
     // Now do something with `localWS` (it is a WebSocket object so use accordingly)
 
-You can create a new `BroadcastWebSocket` connection object via the JavaScript polyfill as follows:
+You can create a new `NetworkWebSocket` connection object via the JavaScript polyfill as follows:
 
-    var broadcastWS = new BroadcastWebSocket("myServiceName");
-    // Now do something with `broadcastWS` (it is a WebSocket object so use accordingly)
+    var networkWS = new NetworkWebSocket("myServiceName");
+    // Now do something with `networkWS` (it is a WebSocket object so use accordingly)
 
-When any other client connects to a `local` or `broadcast` websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another. Note that `local` and `broadcast` based websocket connections are entirely seperate entities even if they happen to share the same service name.
+When any other client connects to a `local` or `network` websocket endpoint named `myServiceName` then your websocket connections will be automatically linked to one another. Note that `local` and `network` based websocket connections are entirely seperate entities even if they happen to share the same service name.
 
 You now have a full-duplex WebSocket channel to use for communication between each service connected to the same service name with the same service type!
 
@@ -89,7 +89,7 @@ Devices and services running on the local machine can register and use Named Web
 
 To create a new `local` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/local/<serviceName>/<peer_id>`, where `serviceName` is the name of the service you want to create and use and `peer_id` is a new random integer to identify the new peer you are registering on this Named WebSocket.
 
-To create a new `broadcast` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/broadcast/<serviceName>/<peer_id>`, where `serviceName` is the name of the service you want to create and use and `peer_id` is a new random integer to identify the new peer you are registering on this Named WebSocket. In addition to `local` Named WebSocket services, this type of Named WebSocket will be advertised in your local network and other Named WebSocket Proxies running in the network will connect to your broadcasted web socket interface.
+To create a new `network` Named WebSocket service from anywhere on the local machine, simply open a new WebSocket to `ws://localhost:9009/network/<serviceName>/<peer_id>`, where `serviceName` is the name of the service you want to create and use and `peer_id` is a new random integer to identify the new peer you are registering on this Named WebSocket. In addition to `local` Named WebSocket services, this type of Named WebSocket will be advertised in your local network and other Named WebSocket Proxies running in the network will connect to your broadcasted web socket interface.
 
 ### Examples
 
@@ -101,13 +101,13 @@ Some example services built with Named WebSockets:
 
 ### Discovery and service advertisement mechanism
 
-Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `broadcast` services on the local network. The proxy connections that result from this process between Named WebSocket Proxies are used to transport WebSocket messages between different broadcast peers using the same *service name* in the local network.
+Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `network` services on the local network. The proxy connections that result from this process between Named WebSocket Proxies are used to transport WebSocket messages between different network peers using the same *service name* in the local network.
 
-Named WebSocket services all use the DNS-SD service type `_ws._tcp` with a unique service name in the form `<serviceName>[<UID>]` (e.g. `myService[2049847123]`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/broadcast/myService`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
+Named WebSocket services all use the DNS-SD service type `_ws._tcp` with a unique service name in the form `<serviceName>[<UID>]` (e.g. `myService[2049847123]`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/network/myService`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
 
-When a new `broadcast` WebSocket is created then the local Named WebSockets Proxy must notify (i.e. 'ping') all other Named WebSocket Proxies in the local network about this newly created service via the DNS-SD broadcast.
+When a new `network` WebSocket is created then the local Named WebSockets Proxy must notify (i.e. 'ping') all other Named WebSocket Proxies in the local network about this newly created service via the DNS-SD broadcast.
 
-When a remote Named WebSockets Proxy detects a new `broadcast` on the multicast DNS-SD port then it immediately establishes a connection to that Named WebSocket's URL and then creates its own new `broadcast` WebSocket to advertise back (i.e. 'pong') to other peers.
+When a remote Named WebSockets Proxy detects a new `network` on the multicast DNS-SD port then it immediately establishes a connection to that Named WebSocket's URL and then creates its own new `network` WebSocket to advertise back (i.e. 'pong') to other peers.
 
 These processes repeats on all Named WebSocket Proxies whenever they receive a previously unseen 'ping' or 'pong' Named WebSocket advertisement broadcast.
 

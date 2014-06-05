@@ -31,7 +31,7 @@
 <script>
 
 // Use a Named WebSocket signalling channel
-var signallingChannel = new BroadcastWebSocket("github.namedwebsockets.p2p.conference");
+var signallingChannel = new NetworkWebSocket("github.namedwebsockets.p2p.conference");
 
 var localVideoEl = document.getElementById('localVideo');
 var peersContainer = document.getElementById('peers');
@@ -166,7 +166,7 @@ navigator.getUserMedia({
 
 }, logError);
 
-// General BroadcastWebSocket new connection event listener
+// General NetworkWebSocket new connection event listener
 signallingChannel.onconnect = function(evt) {
 	// Retrieve the new direct p2p websocket connection with new peer
 	var peerWS = evt.detail.target;

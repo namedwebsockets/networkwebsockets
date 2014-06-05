@@ -48,7 +48,7 @@ func (dc *DiscoveryClient) Register(service *NamedWebSocket_Service, domain stri
 		Service:  "_ws._tcp",
 		Domain:   domain,
 		Port:     dc.Port,
-		Info:     fmt.Sprintf("path=/broadcast/%s", dc.serviceType),
+		Info:     fmt.Sprintf("path=/network/%s", dc.serviceType),
 	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("err: %v", err)
@@ -63,7 +63,7 @@ func (dc *DiscoveryClient) Register(service *NamedWebSocket_Service, domain stri
 
 	service.advertisedServiceNames[dnssdServiceName] = true
 
-	log.Printf("Broadcast websocket advertised as '%s' in %s network", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
+	log.Printf("Network websocket advertised as '%s' in %s network", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
 }
 
 func (dc *DiscoveryClient) Shutdown() {
@@ -119,17 +119,17 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 				// DEBUG
 				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
 
-				// Is this a BroadcastWebSocket service?
+				// Is this a NetworkWebSocket service?
 				if isValid := NetworkServiceMatcher.MatchString(shortName); !isValid {
 					continue
 				}
 
-				// Ignore our own BroadcastWebSocket services
+				// Ignore our own NetworkWebSocket services
 				if isOwned := service.advertisedServiceNames[shortName]; isOwned {
 					continue
 				}
 
-				// Ignore previously discovered BroadcastWebSocket services
+				// Ignore previously discovered NetworkWebSocket services
 				if isRegistered := service.registeredServiceNames[shortName]; isRegistered {
 					continue
 				}
@@ -168,14 +168,14 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					service.namedWebSockets[servicePath] = sock
 				}
 
-				log.Printf("Establishing proxy broadcast websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+				log.Printf("Establishing proxy network websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
 				ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-					"Origin":                     []string{ds.Host},
-					"X-BroadcastWebSocket-Proxy": []string{"true"},
+					"Origin":                   []string{ds.Host},
+					"X-NetworkWebSocket-Proxy": []string{"true"},
 				})
 				if nErr != nil {
-					log.Printf("Proxy broadcast websocket connection failed: %s", nErr)
+					log.Printf("Proxy network websocket connection failed: %s", nErr)
 					return
 				}
 

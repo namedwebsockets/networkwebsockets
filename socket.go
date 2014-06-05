@@ -50,10 +50,10 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Create a new NamedWebSocket instance (local or broadcast-based) with a given service type
-func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isBroadcast bool, port int) *NamedWebSocket {
-	scope := "broadcast"
-	if isBroadcast == false {
+// Create a new NamedWebSocket instance (local or network-based) with a given service type
+func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNetwork bool, port int) *NamedWebSocket {
+	scope := "network"
+	if isNetwork == false {
 		scope = "local"
 	}
 
@@ -69,7 +69,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isBr
 
 	log.Printf("New %s websocket '%s' created.", scope, serviceName)
 
-	if isBroadcast {
+	if isNetwork {
 		go sock.advertise(service, port)
 	}
 
@@ -91,7 +91,7 @@ func (sock *NamedWebSocket) serveService(w http.ResponseWriter, r *http.Request,
 	}
 
 	isProxy := false
-	proxyHeader := r.Header.Get("X-BroadcastWebSocket-Proxy")
+	proxyHeader := r.Header.Get("X-NetworkWebSocket-Proxy")
 	if proxyHeader == "true" {
 		isProxy = true
 	}

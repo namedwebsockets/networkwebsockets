@@ -111,7 +111,7 @@ func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, 
 	}
 }
 
-func TestLocalConnection_Broadcast(t *testing.T) {
+func TestLocalConnection_Network(t *testing.T) {
 	// Make named websocket test server
 	s1 := makeService("localhost", 9021)
 	go s1.StartHTTPServer()
@@ -170,7 +170,7 @@ func TestLocalConnection_Broadcast(t *testing.T) {
 	c3.Close()
 }
 
-func TestNetworkConnection_Broadcast(t *testing.T) {
+func TestNetworkConnection_Network(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9022)
 	go s1.StartNewDiscoveryServer()
@@ -193,16 +193,16 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 	)
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9022", "/broadcast/testservice_B", c1_Id)
-	c2 := makeClient(t, "localhost:9022", "/broadcast/testservice_B", c2_Id)
-	c3 := makeClient(t, "localhost:9023", "/broadcast/testservice_B", c3_Id)
-	c4 := makeClient(t, "localhost:9024", "/broadcast/testservice_B", c4_Id)
+	c1 := makeClient(t, "localhost:9022", "/network/testservice_B", c1_Id)
+	c2 := makeClient(t, "localhost:9022", "/network/testservice_B", c2_Id)
+	c3 := makeClient(t, "localhost:9023", "/network/testservice_B", c3_Id)
+	c4 := makeClient(t, "localhost:9024", "/network/testservice_B", c4_Id)
 
 	// Make named websocket test client controllers
-	c1_control := makeClient(t, "localhost:9022", "/control/broadcast/testservice_B", c1_Id)
-	c2_control := makeClient(t, "localhost:9022", "/control/broadcast/testservice_B", c2_Id)
-	c3_control := makeClient(t, "localhost:9023", "/control/broadcast/testservice_B", c3_Id)
-	c4_control := makeClient(t, "localhost:9024", "/control/broadcast/testservice_B", c4_Id)
+	c1_control := makeClient(t, "localhost:9022", "/control/network/testservice_B", c1_Id)
+	c2_control := makeClient(t, "localhost:9022", "/control/network/testservice_B", c2_Id)
+	c3_control := makeClient(t, "localhost:9023", "/control/network/testservice_B", c3_Id)
+	c4_control := makeClient(t, "localhost:9024", "/control/network/testservice_B", c4_Id)
 
 	// Test connect control messages
 	c1_control.recvDirect(t, "connect", c1_Id, c2_Id, "")
@@ -284,16 +284,16 @@ func TestNetworkConnection_DirectMessaging(t *testing.T) {
 	)
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9025", "/broadcast/testservice_C", c1_Id)
-	c2 := makeClient(t, "localhost:9026", "/broadcast/testservice_C", c2_Id)
-	c3 := makeClient(t, "localhost:9026", "/broadcast/testservice_C", c3_Id)
-	c4 := makeClient(t, "localhost:9027", "/broadcast/testservice_C", c4_Id)
+	c1 := makeClient(t, "localhost:9025", "/network/testservice_C", c1_Id)
+	c2 := makeClient(t, "localhost:9026", "/network/testservice_C", c2_Id)
+	c3 := makeClient(t, "localhost:9026", "/network/testservice_C", c3_Id)
+	c4 := makeClient(t, "localhost:9027", "/network/testservice_C", c4_Id)
 
 	// Make named websocket test client controllers
-	c1_control := makeClient(t, "localhost:9025", "/control/broadcast/testservice_C", c1_Id)
-	c2_control := makeClient(t, "localhost:9026", "/control/broadcast/testservice_C", c2_Id)
-	c3_control := makeClient(t, "localhost:9026", "/control/broadcast/testservice_C", c3_Id)
-	c4_control := makeClient(t, "localhost:9027", "/control/broadcast/testservice_C", c4_Id)
+	c1_control := makeClient(t, "localhost:9025", "/control/network/testservice_C", c1_Id)
+	c2_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c2_Id)
+	c3_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c3_Id)
+	c4_control := makeClient(t, "localhost:9027", "/control/network/testservice_C", c4_Id)
 
 	// Test connect control messages
 	c1_control.recvDirect(t, "connect", c1_Id, c2_Id, "")

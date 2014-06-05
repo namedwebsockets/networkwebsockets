@@ -17,9 +17,9 @@ var (
 
 	peerIdRegexStr = "[0-9]{4,}"
 
-	isBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(.*/broadcast/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isNetworkRequest = regexp.MustCompile(fmt.Sprintf("^(.*/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isControlRequest = regexp.MustCompile(fmt.Sprintf("(/control/(broadcast|local)/%s/%s)", serviceNameRegexStr, peerIdRegexStr))
+	isControlRequest = regexp.MustCompile(fmt.Sprintf("(/control/(network|local)/%s/%s)", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 )
@@ -28,7 +28,7 @@ type NamedWebSocket_Service struct {
 	Host string
 	Port int
 
-	// All Named WebSocket services (local or broadcast) that this service manages
+	// All Named WebSocket services (local or network) that this service manages
 	namedWebSockets map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
@@ -57,7 +57,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 
 	// Serve the web socket creation endpoints
 	serveMux.HandleFunc("/local/", service.serveWSCreator)
-	serveMux.HandleFunc("/broadcast/", service.serveWSCreator)
+	serveMux.HandleFunc("/network/", service.serveWSCreator)
 	serveMux.HandleFunc("/control/", service.serveWSCreator)
 
 	log.Printf("Serving Named WebSockets Proxy at http://%s:%d/", service.Host, service.Port)
@@ -77,7 +77,7 @@ func (service *NamedWebSocket_Service) StartNewDiscoveryServer() {
 
 	defer discoveryServer.Shutdown()
 
-	log.Print("Listening for broadcast websocket advertisements in local network...")
+	log.Print("Listening for network websocket advertisements in local network...")
 
 	for !discoveryServer.closed {
 		discoveryServer.Browse(service)
@@ -131,7 +131,7 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 		return
 	}
 
-	isBroadcast := isBroadcastRequest.MatchString(r.URL.Path)
+	isNetwork := isNetworkRequest.MatchString(r.URL.Path)
 	isControl := isControlRequest.MatchString(r.URL.Path)
 
 	pathParts := strings.Split(r.URL.Path, "/")
@@ -152,10 +152,10 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 		return
 	}
 
-	// Resolve websocket connection (also, split Local and Broadcast types with the same name)
+	// Resolve websocket connection (also, split Local and Network types with the same name)
 	sock := service.namedWebSockets[servicePath]
 	if sock == nil {
-		sock = NewNamedWebSocket(service, serviceName, isBroadcast, service.Port)
+		sock = NewNamedWebSocket(service, serviceName, isNetwork, service.Port)
 		service.namedWebSockets[servicePath] = sock
 	}
 

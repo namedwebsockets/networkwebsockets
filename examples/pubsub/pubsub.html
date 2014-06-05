@@ -15,9 +15,9 @@
 
 	<script>
 
-		var broadcastWS = new LocalWebSocket("com.github.richtr.service.myAuthService");
+		var networkWS = new LocalWebSocket("com.github.richtr.service.myAuthService");
 
-		var pubSubHub = new NamedWS_PubSubHub(broadcastWS);
+		var pubSubHub = new NamedWS_PubSubHub(networkWS);
 
 		pubSubHub.subscribe('user.logged.in', function (data) {
 			doLogin(data.username);
@@ -35,7 +35,7 @@
 		});
 
 		// Initialize logged in state on page load
-		broadcastWS.onopen = function() {
+		networkWS.onopen = function() {
 			pubSubHub.publish('user.islogged.in');
 		}
 

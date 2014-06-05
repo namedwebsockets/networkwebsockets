@@ -105,7 +105,7 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 
 		case "message":
 
-			// Broadcast message on to given target
+			// broadcast message on to given target
 			wsBroadcast := &Message{
 				source:    message.Source,
 				target:    0, // target all connections

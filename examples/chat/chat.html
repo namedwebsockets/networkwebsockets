@@ -11,28 +11,28 @@
 		var msg = document.querySelector('#msg');
 		var log = document.querySelector('#log');
 
-		var broadcastWS = new BroadcastWebSocket("com.github.richtr.service.chat");
+		var networkWS = new NetworkWebSocket("com.github.richtr.service.chat");
 
 		// Start
-		broadcastWS.onopen = function(evt) {
+		networkWS.onopen = function(evt) {
 			appendLog("* Named WebSockets connection established.");
 		};
 
 		// Send
 		form.onsubmit = function(evt) {
 			evt.preventDefault();
-			if (broadcastWS.readyState != 1) return;
-			broadcastWS.send(msg.value);
+			if (networkWS.readyState != 1) return;
+			networkWS.send(msg.value);
 			appendLog(">>> " + msg.value);
 		};
 
 		// Receive
-		broadcastWS.onmessage = function(evt) {
+		networkWS.onmessage = function(evt) {
 			appendLog("<<< " + evt.data);
 		};
 
 		// Stop
-		broadcastWS.onclose = function(evt) {
+		networkWS.onclose = function(evt) {
 			appendLog("* Named WebSockets connection terminated.");
 		};
 

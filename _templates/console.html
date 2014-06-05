@@ -5,14 +5,14 @@
 
 	<script>
 		/***
-		 * BroadcastWebSocket + LocalWebSocket shim library
+		 * NetworkWebSocket + LocalWebSocket shim library
 		 * ----------------------------------------------------------------
 		 *
 		 * API Usage:
 		 * ----------
 		 *
-		 *     // Broadcast and connect with other peers using the same service name in the current network
-		 *     var ws = new BroadcastWebSocket("myServiceName");
+		 *     // Connect with other peers using the same service name in the current network
+		 *     var ws = new NetworkWebSocket("myServiceName");
 		 *
 		 * or:
 		 *
@@ -40,10 +40,10 @@
 			    return true;
 			}
 
-			function createServicePath(isBroadcast, serviceName) {
+			function createServicePath(isNetwork, serviceName) {
 				var path = "";
-				if (isBroadcast) {
-					path += "broadcast/";
+				if (isNetwork) {
+					path += "network/";
 				} else {
 					path += "local/";
 				}
@@ -216,14 +216,14 @@
 		/**** END WEBSOCKET SHIM ****/
 
 
-			var NamedWebSocket = function (serviceName, subprotocols, isBroadcast) {
+			var NamedWebSocket = function (serviceName, subprotocols, isNetwork) {
 				if (!isValidServiceName(serviceName)) {
 					throw "Invalid Service Name: " + serviceName;
 				}
 
 				var peerId = Math.floor( Math.random() * 1e16);
 
-				var path = createServicePath(isBroadcast, serviceName)
+				var path = createServicePath(isNetwork, serviceName)
 
 				var rootWebSocket = new WebSocket(endpointUrlBase + path + peerId, subprotocols);
 
@@ -315,7 +315,7 @@
 				return rootWebSocket;
 			};
 
-			var BroadcastWebSocket = function (serviceName, subprotocols) {
+			var NetworkWebSocket = function (serviceName, subprotocols) {
 				return new NamedWebSocket(serviceName, subprotocols, true);
 			};
 
@@ -325,8 +325,8 @@
 
 			// Expose global functions
 
-			if (!global.BroadcastWebSocket) {
-				global.BroadcastWebSocket = (global.module || {}).exports = BroadcastWebSocket;
+			if (!global.NetworkWebSocket) {
+				global.NetworkWebSocket = (global.module || {}).exports = NetworkWebSocket;
 			}
 
 			if (!global.LocalWebSocket) {
@@ -366,9 +366,9 @@
 				return;
 			}
 			var serviceName = document.getElementById('name').value;
-			var isBroadcast = document.getElementById('broadcast').checked;
-			if (isBroadcast) {
-				namedsocket = new BroadcastWebSocket(serviceName);
+			var isNetwork = document.getElementById('network').checked;
+			if (isNetwork) {
+				namedsocket = new NetworkWebSocket(serviceName);
 			} else {
 				namedsocket = new LocalWebSocket(serviceName);
 			}
@@ -518,8 +518,8 @@
 			<label for="local">Local Service</label>
 			<input type="radio" id="local" name="namedsockettype" value="LocalWebSocket" checked>
 			<span style="margin: 0 20px;"></span>
-			<label for="broadcast">Network Service</label>
-			<input type="radio" id="broadcast" name="namedsockettype" value="BroadcastWebSocket">
+			<label for="network">Network Service</label>
+			<input type="radio" id="network" name="namedsockettype" value="NetworkWebSocket">
 		</p>
 		<p>
 			<label><strong>Peer Count:</strong> <span id="peerCount">-</span>
