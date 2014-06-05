@@ -1,4 +1,4 @@
-«Named» WebSockets
+Named WebSockets
 ===
 
 #### Dynamic binding, peer management and local service discovery for WebSockets ####
