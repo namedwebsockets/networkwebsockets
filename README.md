@@ -7,6 +7,8 @@ Named WebSockets is a bootstrap mechanism for creating, binding and connecting W
 
 A web page or application can create a new Named WebSocket - a standard WebSocket connection - by choosing an appropriate *service type* (`local` or `network`) and *service name* (any alphanumeric name) via one of the [Named WebSocket interfaces](#named-websocket-interfaces). When other web pages or applications create their own Named WebSocket connection with the same *type* and *name* then the resulting WebSocket connection acts as a full-duplex broadcast channel between all connected Named WebSocket peers.
 
+![Named WebSockets](https://raw.githubusercontent.com/namedwebsockets/namedwebsockets/images/networkwebsockets_diagram.png "Named WebSockets")
+
 Named WebSockets are useful in a variety of collaborative local device and local network scenarios:
 
 * Discover matching peer services on the local device and/or the local network.
