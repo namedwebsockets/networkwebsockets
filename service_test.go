@@ -111,7 +111,7 @@ func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, 
 	}
 }
 
-func TestLocalConnection_Network(t *testing.T) {
+func TestLocalConnection_Broadcast(t *testing.T) {
 	// Make named websocket test server
 	s1 := makeService("localhost", 9021)
 	go s1.StartHTTPServer()
@@ -170,7 +170,7 @@ func TestLocalConnection_Network(t *testing.T) {
 	c3.Close()
 }
 
-func TestNetworkConnection_Network(t *testing.T) {
+func TestNetworkConnection_Broadcast(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9022)
 	go s1.StartNewDiscoveryServer()
