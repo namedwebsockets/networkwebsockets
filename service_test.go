@@ -119,9 +119,9 @@ func TestLocalConnection_Broadcast(t *testing.T) {
 	// Define connection identifiers
 	const (
 		c1_Id = 11111
-		c2_Id = 22222
-		c3_Id = 33333
-		c4_Id = 44444
+		c2_Id = 22221
+		c3_Id = 33331
+		c4_Id = 44441
 	)
 
 	// Make named websocket test clients
@@ -133,6 +133,12 @@ func TestLocalConnection_Broadcast(t *testing.T) {
 	c1_control := makeClient(t, "localhost:9021", "/control/local/testservice_A", c1_Id)
 	c2_control := makeClient(t, "localhost:9021", "/control/local/testservice_A", c2_Id)
 	c3_control := makeClient(t, "localhost:9021", "/control/local/testservice_A", c3_Id)
+
+	defer func() {
+		c1_control.Close()
+		c2_control.Close()
+		c3_control.Close()
+	}()
 
 	// Test connect control messages
 	c1_control.recvDirect(t, "connect", c1_Id, c2_Id, "")
@@ -186,10 +192,10 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 
 	// Define connection identifiers
 	const (
-		c1_Id = 11111
+		c1_Id = 11112
 		c2_Id = 22222
-		c3_Id = 33333
-		c4_Id = 44444
+		c3_Id = 33332
+		c4_Id = 44442
 	)
 
 	// Make named websocket test clients
@@ -203,6 +209,13 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 	c2_control := makeClient(t, "localhost:9022", "/control/network/testservice_B", c2_Id)
 	c3_control := makeClient(t, "localhost:9023", "/control/network/testservice_B", c3_Id)
 	c4_control := makeClient(t, "localhost:9024", "/control/network/testservice_B", c4_Id)
+
+	defer func() {
+		c1_control.Close()
+		c2_control.Close()
+		c3_control.Close()
+		c4_control.Close()
+	}()
 
 	// Test connect control messages
 	c1_control.recvDirect(t, "connect", c1_Id, c2_Id, "")
@@ -277,10 +290,10 @@ func TestNetworkConnection_DirectMessaging(t *testing.T) {
 
 	// Define connection identifiers
 	const (
-		c1_Id = 11111
-		c2_Id = 22222
+		c1_Id = 11113
+		c2_Id = 22223
 		c3_Id = 33333
-		c4_Id = 44444
+		c4_Id = 44443
 	)
 
 	// Make named websocket test clients
@@ -294,6 +307,13 @@ func TestNetworkConnection_DirectMessaging(t *testing.T) {
 	c2_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c2_Id)
 	c3_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c3_Id)
 	c4_control := makeClient(t, "localhost:9027", "/control/network/testservice_C", c4_Id)
+
+	defer func() {
+		c1_control.Close()
+		c2_control.Close()
+		c3_control.Close()
+		c4_control.Close()
+	}()
 
 	// Test connect control messages
 	c1_control.recvDirect(t, "connect", c1_Id, c2_Id, "")
