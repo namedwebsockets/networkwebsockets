@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>WebRTC signalling over Named WebSockets</title>
+
+	<script src="./js/namedwebsockets.js"></script>
+	<style>
+	video {
+		width: 320px;
+		padding: 20px;
+		margin: 4px;
+		background-color: lightgreen;
+		border: 3px solid green;
+	}
+
+	#peers video {
+		padding: 20px;
+		background-color: lightyellow;
+		border-color: yellow;
+	}
+	</style>
+</head>
+<body>
+<div>
+	<video id="localVideo" autoplay></video>
+	<span id="peers">
+		<!-- WebRTC Peer Connections will appear here -->
+	</div>
+</div>
+
+<script>
+
+// Use a Named WebSocket signalling channel
+var signallingChannel = new NetworkWebSocket("github.namedwebsockets.p2p.conference");
+
+var localVideoEl = document.getElementById('localVideo');
+var peersContainer = document.getElementById('peers');
+
+// WebRTC shim objects
+var PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+var SessionDescription = window.mozRTCSessionDescription || window.RTCSessionDescription;
+var IceCandidate = window.mozRTCIceCandidate || window.RTCIceCandidate;
+navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
+
+// PeerConnection object configuration+options
+var configuration = {
+	iceServers: []
+};
+var options = {
+	optional: [{
+		DtlsSrtpKeyAgreement: true
+	}]
+};
+
+var cameraStream, cameraQueue = [];
+
+// Generic error handler
+function logError(error) {
+	console.error(error);
+}
+
+function Peer(peerWS, isOfferer) {
+	var pc = new PeerConnection(configuration, options);
+
+	var remoteVideoEl = document.createElement('video');
+
+	// send any ice candidates to the other peer
+	pc.onicecandidate = function(evt) {
+		if (evt.candidate)
+			peerWS.send(JSON.stringify({
+				'action': 'ice',
+				'candidate': evt.candidate
+			}))
+	};
+
+	// let the "negotiationneeded" event trigger offer generation
+	pc.onnegotiationneeded = function() {
+		if(isOfferer) {
+			pc.createOffer(function(desc) {
+				localDescCreated(desc, 'offer');
+			}, logError);
+		}
+	}
+
+	// once remote stream arrives, show it in the remote video element
+	pc.onaddstream = function(evt) {
+		remoteVideoEl.src = URL.createObjectURL(evt.stream);
+		remoteVideoEl.play();
+
+		peersContainer.appendChild(remoteVideoEl);
+	};
+
+	var localDescCreated = function(desc, topicURI) {
+		pc.setLocalDescription(desc, function() {
+			var data = {
+				'action': topicURI
+			};
+			data[topicURI] = desc;
+			peerWS.send(JSON.stringify(data))
+		}, logError);
+	}
+
+	var handleRemoteDescription = function(data) {
+		if (!pc)
+			start(false);
+
+		pc.setRemoteDescription(new SessionDescription(data), function() {
+			// if we received an offer, we need to answer
+			if (pc.remoteDescription.type == "offer") {
+				pc.createAnswer(function(desc) {
+					localDescCreated(desc, 'answer');
+				}, logError);
+			}
+		}, logError);
+	}
+
+	// get a local stream, show it in a self-view and add it to be sent
+	if (cameraStream) {
+		pc.addStream(cameraStream);
+	} else {
+		cameraQueue.push(pc);
+	}
+
+	// Peer-specific signalling channel message event listener
+	peerWS.onmessage = function(evt) {
+		var data = JSON.parse(evt.data || {});
+
+		switch(data.action) {
+			case 'offer':
+				handleRemoteDescription(data.offer);
+				break;
+
+			case 'answer':
+				handleRemoteDescription(data.answer);
+				break;
+
+			case 'ice':
+				pc.addIceCandidate(new IceCandidate(data.candidate), function() {}, logError);
+				break;
+		}
+	};
+
+	// Peer-specific signalling channel disconnection event listener
+	peerWS.onclose = function(evt) {
+		pc.close();
+		try {
+			peersContainer.removeChild(remoteVideoEl);
+		} catch(e) {}
+	}
+}
+
+// Request camera and microphone access
+navigator.getUserMedia({
+	"video": true,
+	"audio": true
+}, function(stream) {
+	localVideoEl.src = URL.createObjectURL(stream);
+
+	cameraStream = stream;
+
+	// Apply camera to all peer connections and drain queue
+	for (var i in cameraQueue) {
+		(cameraQueue[i]).addStream(cameraStream);
+	}
+	cameraQueue = [];
+
+}, logError);
+
+// General NetworkWebSocket new connection event listener
+signallingChannel.onconnect = function(evt) {
+	// Retrieve the new direct p2p websocket connection with new peer
+	var peerWS = evt.detail.target;
+
+	// Kick off session establishment process
+	// (pick 'offerer' and 'answerer' roles)
+	peerWS.onopen = function() {
+		peerWS.onmessage = function(evt) {
+			var data = JSON.parse(evt.data || {});
+
+			if (data.action == 'hello') {
+				// Create new PeerConnection (offerer)
+				new Peer(peerWS, true);
+
+				peerWS.send(JSON.stringify({
+					'action': 'welcome'
+				}));
+			} else if (data.action == 'welcome') {
+				// Create new PeerConnection (answerer)
+				new Peer(peerWS, false);
+			}
+		};
+
+		peerWS.send(JSON.stringify({
+			'action': 'hello'
+		}));
+	}
+};
+
+</script>
+
+</body>
+</html>
