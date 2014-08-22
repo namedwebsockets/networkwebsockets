@@ -7,7 +7,9 @@ This demo establishes a Named WebSocket to coordinate the set up of WebRTC PeerC
 
 #### Running the example
 
-1. Ensure a Named WebSockets Proxy is running as detailed in the root project [README](https://github.com/namedwebsockets/namedwebsockets/blob/master/README.md#run-a-named-websockets-proxy).
+1. Ensure the Named WebSockets Proxy has been downloaded and is currently running on your local machine. You can download pre-built Named WebSocket Proxy binaries [here](https://github.com/namedwebsockets/namedwebsockets/releases).
+
+    NOTE: Ultimately, this step should not be required with all proxy functionality implemented within user agents.
 
 2. Open [webrtc.html](http://namedwebsockets.github.io/namedwebsockets/examples/webrtc/webrtc.html) on your local machine.
 
