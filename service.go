@@ -131,6 +131,11 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 		return
 	}
 
+	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+		http.Error(w, "Not found", 404)
+		return
+	}
+
 	isNetwork := isNetworkRequest.MatchString(r.URL.Path)
 	isControl := isControlRequest.MatchString(r.URL.Path)
 
