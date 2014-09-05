@@ -152,13 +152,6 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 				rand.Seed(time.Now().UTC().UnixNano())
 				newPeerId := rand.Int()
 
-				// Build URL
-				remoteWSUrl := &url.URL{
-					Scheme: "ws",
-					Host:   fmt.Sprintf("%s:%d", e.Host, e.Port),
-					Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
-				}
-
 				serviceName := path.Base(servicePath)
 
 				// Resolve websocket connection
@@ -168,22 +161,37 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					service.namedWebSockets[servicePath] = sock
 				}
 
-				log.Printf("Establishing proxy network websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+				hosts := [...]string{e.Host, e.AddrV4.String(), e.AddrV6.String()}
 
-				ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-					"Origin":                   []string{ds.Host},
-					"X-NetworkWebSocket-Proxy": []string{"true"},
-				})
-				if nErr != nil {
-					log.Printf("Proxy network websocket connection failed: %s", nErr)
-					return
+				for i := 0; i < len(hosts); i++ {
+
+					// Build URL
+					remoteWSUrl := &url.URL{
+						Scheme: "ws",
+						Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
+						Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
+					}
+
+					log.Printf("Establishing proxy network websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+
+					ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
+						"Origin":                   []string{ds.Host},
+						"X-NetworkWebSocket-Proxy": []string{"true"},
+					})
+					if nErr != nil {
+						log.Printf("Proxy network websocket connection failed: %s", nErr)
+						continue
+					}
+
+					proxyConn := NewProxyConnection(newPeerId, ws, false)
+
+					proxyConn.addConnection(sock)
+
+					service.registeredServiceNames[shortName] = true
+
+					break
+
 				}
-
-				proxyConn := NewProxyConnection(newPeerId, ws, false)
-
-				proxyConn.addConnection(sock)
-
-				service.registeredServiceNames[shortName] = true
 
 			case <-finish:
 				complete = true
