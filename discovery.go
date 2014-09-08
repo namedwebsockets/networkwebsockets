@@ -84,7 +84,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	timeout := 2 * time.Second
+	timeout := 20 * time.Second
 
 	params := &mdns.QueryParam{
 		Service: "_ws._tcp",
