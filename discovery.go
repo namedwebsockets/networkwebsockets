@@ -157,7 +157,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 				// Resolve websocket connection
 				sock := service.namedWebSockets[servicePath]
 				if sock == nil {
-					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
+					sock = NewNamedWebSocket(service, serviceName, false, ds.Port)
 					service.namedWebSockets[servicePath] = sock
 				}
 
