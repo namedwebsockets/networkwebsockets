@@ -36,6 +36,14 @@
 			appendLog("* Named WebSockets connection terminated.");
 		};
 
+		networkWS.onconnect = function(evt) {
+		  appendLog("* A peer has connected.");
+		};
+
+		networkWS.ondisconnect = function(evt) {
+		  appendLog("* A peer has disconnected.");
+		};
+
 		function appendLog(message) {
 			var el = document.createElement("div");
 			el.textContent = message;
