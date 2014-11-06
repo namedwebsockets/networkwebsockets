@@ -191,14 +191,15 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 						// Establish Proxy WebSocket connection over TLS-SRP
 
-						tlsSrpConfig := new(tls.Config)
-						tlsSrpConfig.SRPUser = serviceHash_Base64
-						tlsSrpConfig.SRPPassword = serviceName
+						tlsSrpConfig := &tls.Config{
+							SRPUser:     serviceHash_Base64,
+							SRPPassword: serviceName,
+						}
 
 						tlsSrpDialer := &TLSSRPDialer{
 							HandshakeTimeout: time.Duration(10) * time.Second,
-							ReadBufferSize: 8096,
-							WriteBufferSize: 8096,
+							ReadBufferSize: 8192,
+							WriteBufferSize: 8192,
 						}
 
 						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{

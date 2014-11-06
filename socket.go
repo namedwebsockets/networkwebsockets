@@ -79,11 +79,13 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 
 	if isNetwork {
 		service.knownServiceNames[sock.serviceName] = true
-		service.advertisedServiceHashes[sock.serviceHash] = true
 
+		// Add TLS-SRP credentials for access to this service to credentials store
 		serviceTab[sock.serviceHash] = sock.serviceName
 
 		go sock.advertise(port + 1)
+
+		service.advertisedServiceHashes[sock.serviceHash] = true
 	}
 
 	return sock

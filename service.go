@@ -30,7 +30,7 @@ var (
 
 	// TLS-SRP configuration components
 
-	// We deliverately only use a weak salt because we don't persistently store TLS-SRP credential data
+	// We deliberately only use a weak salt because we don't persistently store TLS-SRP credential data
 	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 
 	serviceTab = SRPCredentialsStore(map[string]string{})
