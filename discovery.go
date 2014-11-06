@@ -109,7 +109,8 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 					// Build websocket data from returned information
 					servicePath := "/"
-					serviceHash := ""
+					serviceHash_Base64 := ""
+					serviceHash_BCrypt := ""
 
 					serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
 						return r == '=' || r == ',' || r == ';' || r == ' '
@@ -117,10 +118,13 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					if len(serviceParts) > 1 {
 						for i := 0; i < len(serviceParts); i += 2 {
 							if strings.ToLower(serviceParts[i]) == "path" {
-								pathStr := serviceParts[i+1]
-								serviceHashB, _ := base64.StdEncoding.DecodeString( path.Base(pathStr) ) // strip leading '/'
-								serviceHash = string(serviceHashB[:])
-								servicePath = pathStr
+								servicePath = serviceParts[i+1]
+								serviceHash_Base64 = path.Base(servicePath) // strip leading '/'
+
+								serviceBCryptHashB, _ := base64.StdEncoding.DecodeString( serviceHash_Base64 )
+								serviceHash_BCrypt = string(serviceBCryptHashB[:])
+
+								log.Printf("Service hash '%s' discovered", serviceHash_BCrypt)
 								break
 							}
 						}
@@ -132,19 +136,21 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					// Resolve service hash provided against advertised services
 					isKnown := false
 					for knownServiceName := range service.knownServiceNames {
-						if bcrypt.Match(knownServiceName, serviceHash) {
+						if bcrypt.Match(knownServiceName, serviceHash_BCrypt) {
+
+							log.Printf("Service hash '%s' identified as service '%s'", serviceHash_BCrypt, knownServiceName)
 
 							serviceName = knownServiceName
 
-							shortName = fmt.Sprintf("/network/%s/", knownServiceName)
+							shortName = fmt.Sprintf("/network/%s", knownServiceName)
 
 							// Ignore our own NetworkWebSocket services
-							if isOwned := service.advertisedServiceNames[serviceName]; isOwned {
+							if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
 								continue RecordCheck
 							}
 
 							// Ignore previously discovered NetworkWebSocket services
-							if isRegistered := service.registeredServiceNames[serviceName]; isRegistered {
+							if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
 								continue RecordCheck
 							}
 
@@ -174,7 +180,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					for i := 0; i < len(hosts); i++ {
 
 						// Build URL
-						remoteWSUrl := &url.URL{
+						remoteWSUrl := url.URL{
 							Scheme: "wss",
 							Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
 							Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
@@ -185,10 +191,10 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 						// Establish Proxy WebSocket connection over TLS-SRP
 
 						tlsSrpConfig := new(tls.Config)
-						tlsSrpConfig.SRPUser = serviceHash
+						tlsSrpConfig.SRPUser = serviceHash_Base64
 						tlsSrpConfig.SRPPassword = serviceName
 
-						tlsSrpDialer := TLSSRPDialer{}
+						tlsSrpDialer := &TLSSRPDialer{}
 
 						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
 							"Origin":                   []string{ds.Host},
@@ -203,7 +209,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 						proxyConn.addConnection(sock)
 
-						service.registeredServiceNames[serviceName] = true
+						service.registeredServiceHashes[serviceHash_Base64] = true
 
 						break
 
@@ -228,7 +234,7 @@ func (ds *DiscoveryServer) Shutdown() {
 
 
 type TLSSRPDialer struct {
-	*websocket.Dialer
+	websocket.Dialer
 }
 
 // Dial creates a new TLS-SRP based client connection. Use requestHeader to specify the
@@ -239,12 +245,9 @@ type TLSSRPDialer struct {
 // If the WebSocket handshake fails, ErrBadHandshake is returned along with a
 // non-nil *http.Response so that callers can handle redirects, authentication,
 // etc.
-func (d *TLSSRPDialer) Dial(url *url.URL, tlsSrpConfig *tls.Config, requestHeader http.Header) (*websocket.Conn, *http.Response, error) {
-	if d == nil {
-		d = &TLSSRPDialer{}
-	}
-
+func (d *TLSSRPDialer) Dial(url url.URL, tlsSrpConfig *tls.Config, requestHeader http.Header) (*websocket.Conn, *http.Response, error) {
 	var deadline time.Time
+
 	if d.HandshakeTimeout != 0 {
 		deadline = time.Now().Add(d.HandshakeTimeout)
 	}
@@ -273,7 +276,7 @@ func (d *TLSSRPDialer) Dial(url *url.URL, tlsSrpConfig *tls.Config, requestHeade
 		requestHeader = h
 	}
 
-	conn, resp, err := websocket.NewClient(netConn, url, requestHeader, d.ReadBufferSize, d.WriteBufferSize)
+	conn, resp, err := websocket.NewClient(netConn, &url, requestHeader, d.ReadBufferSize, d.WriteBufferSize)
 	if err != nil {
 		return nil, resp, err
 	}

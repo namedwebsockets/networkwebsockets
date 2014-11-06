@@ -79,9 +79,8 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 
 	if isNetwork {
 		service.knownServiceNames[sock.serviceName] = true
-		service.advertisedServiceNames[sock.serviceName] = true
+		service.advertisedServiceHashes[sock.serviceHash] = true
 
-		// Store TLS-SRP username/password pair
 		serviceTab[sock.serviceHash] = sock.serviceName
 
 		go sock.advertise(port + 1)

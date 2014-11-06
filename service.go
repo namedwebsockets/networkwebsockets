@@ -61,9 +61,9 @@ type NamedWebSocket_Service struct {
 	namedWebSockets map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
-	knownServiceNames      map[string]bool
-	advertisedServiceNames map[string]bool
-	registeredServiceNames map[string]bool
+	knownServiceNames       map[string]bool
+	advertisedServiceHashes map[string]bool
+	registeredServiceHashes map[string]bool
 }
 
 func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
@@ -71,10 +71,10 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		Host: host,
 		Port: port,
 
-		namedWebSockets:        make(map[string]*NamedWebSocket),
-		knownServiceNames:      make(map[string]bool),
-		advertisedServiceNames: make(map[string]bool),
-		registeredServiceNames: make(map[string]bool),
+		namedWebSockets:         make(map[string]*NamedWebSocket),
+		knownServiceNames:       make(map[string]bool),
+		advertisedServiceHashes: make(map[string]bool),
+		registeredServiceHashes: make(map[string]bool),
 	}
 	return service
 }
