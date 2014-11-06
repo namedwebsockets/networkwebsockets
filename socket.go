@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/jameskeane/bcrypt"
+	"github.com/richtr/bcrypt"
 )
 
 const (

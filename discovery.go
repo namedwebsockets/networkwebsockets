@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/jameskeane/bcrypt"
+	"github.com/richtr/bcrypt"
 	"github.com/richtr/mdns"
-	tls "bitbucket.org/mjl/go-tls-srp"
+	tls "github.com/richtr/go-tls-srp"
 )
 
 /** DISCOVERYCLIENT interface **/

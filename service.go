@@ -11,8 +11,8 @@ import (
 	"strings"
 	"text/template"
 
-	tls "bitbucket.org/mjl/go-tls-srp"
-	"github.com/jameskeane/bcrypt"
+	tls "github.com/richtr/go-tls-srp"
+	"github.com/richtr/bcrypt"
 )
 
 var (
@@ -266,11 +266,10 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	for serviceName := range service.knownServiceNames {
 		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
-			log.Printf("Hash matched service %s!", serviceName)
 
 			sock := service.namedWebSockets[fmt.Sprintf("/network/%s", serviceName)]
 			if sock == nil {
-				log.Fatal("Could not find matching sock object")
+				log.Fatal("Could not find matching NamedWebSocket_Service object for service")
 			}
 
 			peerId, _ := strconv.Atoi(peerIdStr)
