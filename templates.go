@@ -1,11 +1,11 @@
 package namedwebsockets
 
 import (
-    "bytes"
-    "compress/gzip"
-    "fmt"
-    "io"
-    "strings"
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
+	"strings"
 )
 
 func bindata_read(data []byte, name string) ([]byte, error) {
@@ -401,11 +401,10 @@ func templates_console_html() ([]byte, error) {
 		0x3c, 0xf7, 0x20, 0x5f, 0xc1, 0x33, 0x4c, 0x5b, 0x22, 0x5f, 0x41, 0x32,
 		0xa2, 0xff, 0x81, 0xe0, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xa3, 0xbe,
 		0xb1, 0xbb, 0xbc, 0x40, 0x00, 0x00,
-		},
+	},
 		"_templates/console.html",
 	)
 }
-
 
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
@@ -428,6 +427,6 @@ func AssetNames() []string {
 }
 
 // _bindata is a table, holding each asset generator, mapped to its name.
-var _bindata = map[string] func() ([]byte, error) {
+var _bindata = map[string]func() ([]byte, error){
 	"_templates/console.html": templates_console_html,
 }

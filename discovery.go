@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/richtr/bcrypt"
+	tls "github.com/richtr/go-tls-srp"
 	"github.com/richtr/mdns"
 	"github.com/richtr/websocket"
-	tls "github.com/richtr/go-tls-srp"
 )
 
 /** DISCOVERYCLIENT interface **/
@@ -95,135 +95,135 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 		finish := time.After(timeout)
 
 		// Wait for responses until timeout
-		RecordCheck:
-			for !complete {
-				select {
-				case e, ok := <-entries:
+	RecordCheck:
+		for !complete {
+			select {
+			case e, ok := <-entries:
 
-					if !ok {
-						continue
-					}
+				if !ok {
+					continue
+				}
 
-					// DEBUG
-					//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
+				// DEBUG
+				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
 
-					// Build websocket data from returned information
-					servicePath := "/"
-					serviceHash_Base64 := ""
-					serviceHash_BCrypt := ""
+				// Build websocket data from returned information
+				servicePath := "/"
+				serviceHash_Base64 := ""
+				serviceHash_BCrypt := ""
 
-					serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
-						return r == '=' || r == ',' || r == ';' || r == ' '
-					})
-					if len(serviceParts) > 1 {
-						for i := 0; i < len(serviceParts); i += 2 {
-							if strings.ToLower(serviceParts[i]) == "path" {
-								servicePath = serviceParts[i+1]
-								serviceHash_Base64 = path.Base(servicePath) // strip leading '/'
+				serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
+					return r == '=' || r == ',' || r == ';' || r == ' '
+				})
+				if len(serviceParts) > 1 {
+					for i := 0; i < len(serviceParts); i += 2 {
+						if strings.ToLower(serviceParts[i]) == "path" {
+							servicePath = serviceParts[i+1]
+							serviceHash_Base64 = path.Base(servicePath) // strip leading '/'
 
-								serviceBCryptHashB, _ := base64.StdEncoding.DecodeString( serviceHash_Base64 )
-								serviceHash_BCrypt = string(serviceBCryptHashB[:])
-
-								break
-							}
-						}
-					}
-
-					// Ignore our own NetworkWebSocket services
-					if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
-						continue RecordCheck
-					}
-
-					// Ignore previously discovered NetworkWebSocket services
-					if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
-						continue RecordCheck
-					}
-
-					shortName := ""
-					serviceName := ""
-
-					// Resolve service hash provided against advertised services
-					isKnown := false
-					for knownServiceName := range service.knownServiceNames {
-						if bcrypt.Match(knownServiceName, serviceHash_BCrypt) {
-
-							serviceName = knownServiceName
-
-							shortName = fmt.Sprintf("/network/%s", knownServiceName)
-
-							isKnown = true
+							serviceBCryptHashB, _ := base64.StdEncoding.DecodeString(serviceHash_Base64)
+							serviceHash_BCrypt = string(serviceBCryptHashB[:])
 
 							break
 						}
 					}
+				}
 
-					if !isKnown {
-						continue RecordCheck
-					}
+				// Ignore our own NetworkWebSocket services
+				if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
+					continue RecordCheck
+				}
 
-					// Generate unique id for connection
-					rand.Seed(time.Now().UTC().UnixNano())
-					newPeerId := rand.Int()
+				// Ignore previously discovered NetworkWebSocket services
+				if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
+					continue RecordCheck
+				}
 
-					// Resolve websocket connection
-					sock := service.namedWebSockets[shortName]
-					if sock == nil {
-						sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
-						service.namedWebSockets[shortName] = sock
-					}
+				shortName := ""
+				serviceName := ""
 
-					hosts := [...]string{e.AddrV4.String(), e.AddrV6.String()}
+				// Resolve service hash provided against advertised services
+				isKnown := false
+				for knownServiceName := range service.knownServiceNames {
+					if bcrypt.Match(knownServiceName, serviceHash_BCrypt) {
 
-					for i := 0; i < len(hosts); i++ {
+						serviceName = knownServiceName
 
-						if hosts[i] == "<nil>" {
-							continue
-						}
+						shortName = fmt.Sprintf("/network/%s", knownServiceName)
 
-						// Build URL
-						remoteWSUrl := url.URL{
-							Scheme: "wss",
-							Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
-							Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
-						}
-
-						log.Printf("Establishing proxy network websocket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
-
-						// Establish Proxy WebSocket connection over TLS-SRP
-
-						tlsSrpConfig := &tls.Config{
-							SRPUser:     serviceHash_Base64,
-							SRPPassword: serviceName,
-						}
-
-						tlsSrpDialer := &TLSSRPDialer{
-							HandshakeTimeout: time.Duration(10) * time.Second,
-							ReadBufferSize: 8192,
-							WriteBufferSize: 8192,
-						}
-
-						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
-							"Origin": []string{ds.Host},
-						})
-						if nErr != nil {
-							log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
-							continue
-						}
-
-						proxyConn := NewProxyConnection(newPeerId, ws, false)
-
-						proxyConn.addConnection(sock)
-
-						service.registeredServiceHashes[serviceHash_Base64] = true
+						isKnown = true
 
 						break
+					}
+				}
 
+				if !isKnown {
+					continue RecordCheck
+				}
+
+				// Generate unique id for connection
+				rand.Seed(time.Now().UTC().UnixNano())
+				newPeerId := rand.Int()
+
+				// Resolve websocket connection
+				sock := service.namedWebSockets[shortName]
+				if sock == nil {
+					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
+					service.namedWebSockets[shortName] = sock
+				}
+
+				hosts := [...]string{e.AddrV4.String(), e.AddrV6.String()}
+
+				for i := 0; i < len(hosts); i++ {
+
+					if hosts[i] == "<nil>" {
+						continue
 					}
 
-				case <-finish:
-					complete = true
+					// Build URL
+					remoteWSUrl := url.URL{
+						Scheme: "wss",
+						Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
+						Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
+					}
+
+					log.Printf("Establishing proxy network websocket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+
+					// Establish Proxy WebSocket connection over TLS-SRP
+
+					tlsSrpConfig := &tls.Config{
+						SRPUser:     serviceHash_Base64,
+						SRPPassword: serviceName,
+					}
+
+					tlsSrpDialer := &TLSSRPDialer{
+						HandshakeTimeout: time.Duration(10) * time.Second,
+						ReadBufferSize:   8192,
+						WriteBufferSize:  8192,
+					}
+
+					ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
+						"Origin": []string{ds.Host},
+					})
+					if nErr != nil {
+						log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
+						continue
+					}
+
+					proxyConn := NewProxyConnection(newPeerId, ws, false)
+
+					proxyConn.addConnection(sock)
+
+					service.registeredServiceHashes[serviceHash_Base64] = true
+
+					break
+
 				}
+
+			case <-finish:
+				complete = true
 			}
+		}
 	}()
 
 	// Run the mDNS query
@@ -236,7 +236,6 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 func (ds *DiscoveryServer) Shutdown() {
 	ds.closed = true
 }
-
 
 type TLSSRPDialer struct {
 	//websocket.Dialer
@@ -298,4 +297,3 @@ func (d *TLSSRPDialer) Dial(url url.URL, tlsSrpConfig *tls.Config, requestHeader
 	netConn = nil // to avoid close in defer.
 	return conn, resp, nil
 }
-

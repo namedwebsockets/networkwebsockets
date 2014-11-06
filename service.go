@@ -4,8 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
-	"net/http"
 	"math/rand"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,7 +34,6 @@ var (
 	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 
 	serviceTab = SRPCredentialsStore(map[string]string{})
-
 )
 
 // Simple in-memory storage table for TLS-SRP usernames/passwords
@@ -115,20 +114,19 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 	srpSaltKey := string(b)
 
 	tlsServerConfig := &tls.Config{
-		SRPLookup: serviceTab,
-		SRPSaltKey: srpSaltKey,
+		SRPLookup:   serviceTab,
+		SRPSaltKey:  srpSaltKey,
 		SRPSaltSize: len(Salt),
 	}
 
-	tlsSrpListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", service.Port + 1), tlsServerConfig)
+	tlsSrpListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", service.Port+1), tlsServerConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port + 1)
+	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port+1)
 
 	http.Serve(tlsSrpListener, serveMux)
-
 
 }
 
