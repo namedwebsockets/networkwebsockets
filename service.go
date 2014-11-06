@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -107,17 +106,9 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 	// Serve secure websocket creation endpoints for network clients (network-only wss endpoints)
 	serveMux.HandleFunc("/", service.serveProxyWSCreator)
 
-	// Generate random server salt for use in TLS-SRP data storage
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, 32)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	srpSaltKey := string(b)
-
 	tlsServerConfig := &tls.Config{
 		SRPLookup: serviceTab,
-		SRPSaltKey: srpSaltKey,
+		SRPSaltKey: "ip8KYXjj blAtCGBA tzeEWDzG S3wPdLhz",
 		SRPSaltSize: len(Salt),
 	}
 
