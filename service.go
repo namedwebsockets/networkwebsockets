@@ -128,6 +128,8 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port + 1)
 
 	http.Serve(tlsSrpListener, serveMux)
+
+
 }
 
 func (service *NamedWebSocket_Service) StartDiscoveryServer() {
@@ -242,6 +244,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 }
 
 func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
@@ -259,9 +262,9 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	// Resolve serviceHash to an active named websocket service name
 	serviceBCryptHash, _ := base64.StdEncoding.DecodeString(serviceHash)
-	serviceBCryptHashStr := string(serviceBCryptHash[:])
+	serviceBCryptHashStr := string(serviceBCryptHash)
 
-	for serviceName := range service.namedWebSockets {
+	for serviceName := range service.knownServiceNames {
 		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
 			log.Printf("Hash matched service %s!", serviceName)
 
