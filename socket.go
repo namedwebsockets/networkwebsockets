@@ -1,12 +1,14 @@
 package namedwebsockets
 
 import (
+	"encoding/base64"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jameskeane/bcrypt"
 )
 
 const (
@@ -25,6 +27,8 @@ const (
 
 type NamedWebSocket struct {
 	serviceName string
+
+	serviceHash string
 
 	// The current websocket connection control instances to this named websocket
 	controllers []*ControlConnection
@@ -57,8 +61,12 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 		scope = "local"
 	}
 
+	bcryptHashBytes, _ := bcrypt.HashBytes([]byte(serviceName))
+	base64BCryptHashStr := base64.StdEncoding.EncodeToString(bcryptHashBytes)
+
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
+		serviceHash:     base64BCryptHashStr,
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
@@ -67,19 +75,25 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 
 	go sock.messageDispatcher()
 
-	log.Printf("New %s websocket '%s' created.", scope, serviceName)
+	log.Printf("New %s websocket '%s' created with hash[%s].", scope, sock.serviceName, sock.serviceHash)
 
 	if isNetwork {
-		go sock.advertise(service, port)
+		service.knownServiceNames[sock.serviceName] = true
+		service.advertisedServiceNames[sock.serviceName] = true
+
+		// Store TLS-SRP username/password pair
+		serviceTab[sock.serviceHash] = sock.serviceName
+
+		go sock.advertise(port + 1)
 	}
 
 	return sock
 }
 
-func (sock *NamedWebSocket) advertise(service *NamedWebSocket_Service, port int) {
+func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryClient == nil {
 		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(service, sock.serviceName, port)
+		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port)
 	}
 }
 
@@ -90,10 +104,20 @@ func (sock *NamedWebSocket) serveService(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	isProxy := false
-	proxyHeader := r.Header.Get("X-NetworkWebSocket-Proxy")
-	if proxyHeader == "true" {
-		isProxy = true
+	ws, err := sock.upgradeToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, "Not found", 404)
+	}
+
+	peerConn := NewPeerConnection(id, ws)
+	peerConn.addConnection(sock)
+}
+
+// Set up a new web socket connection
+func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id int) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", 405)
+		return
 	}
 
 	ws, err := sock.upgradeToWebSocket(w, r)
@@ -101,13 +125,8 @@ func (sock *NamedWebSocket) serveService(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "Not found", 404)
 	}
 
-	if isProxy {
-		proxyConn := NewProxyConnection(id, ws, true)
-		proxyConn.addConnection(sock)
-	} else {
-		peerConn := NewPeerConnection(id, ws)
-		peerConn.addConnection(sock)
-	}
+	proxyConn := NewProxyConnection(id, ws, true)
+	proxyConn.addConnection(sock)
 }
 
 // Set up a new web socket connection

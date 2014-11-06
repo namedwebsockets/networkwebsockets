@@ -1,13 +1,18 @@
 package namedwebsockets
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+
+	tls "bitbucket.org/mjl/go-tls-srp"
+	"github.com/jameskeane/bcrypt"
 )
 
 var (
@@ -22,7 +27,32 @@ var (
 	isControlRequest = regexp.MustCompile(fmt.Sprintf("(/control/(network|local)/%s/%s)", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
+
+	// TLS-SRP configuration components
+
+	// WARNING: for real servers, every user should have a unique, randomly generated salt.
+	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
+
+	serviceTab = SRPCredentialsStore(map[string]string{})
+
 )
+
+// Simple in-memory storage table for TLS-SRP usernames/passwords
+type SRPCredentialsStore map[string]string
+
+func (cs SRPCredentialsStore) Lookup(user string) (v, s []byte, grp tls.SRPGroup, err error) {
+	grp = tls.SRPGroup4096
+
+	log.Println("Lookup for", user)
+	p := cs[user]
+	if p == "" {
+		return nil, nil, grp, nil
+	}
+	// WARNING: for real servers, you read the verifier from a file or database,
+	// because you don't want to store the password in plaintext.
+	v = tls.SRPVerifier(user, p, Salt, grp)
+	return v, Salt, grp, nil
+}
 
 type NamedWebSocket_Service struct {
 	Host string
@@ -32,6 +62,7 @@ type NamedWebSocket_Service struct {
 	namedWebSockets map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
+	knownServiceNames      map[string]bool
 	advertisedServiceNames map[string]bool
 	registeredServiceNames map[string]bool
 }
@@ -42,6 +73,7 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		Port: port,
 
 		namedWebSockets:        make(map[string]*NamedWebSocket),
+		knownServiceNames:      make(map[string]bool),
 		advertisedServiceNames: make(map[string]bool),
 		registeredServiceNames: make(map[string]bool),
 	}
@@ -55,21 +87,51 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	// Serve the test console
 	serveMux.HandleFunc("/", service.serveConsoleTemplate)
 
-	// Serve the web socket creation endpoints
-	serveMux.HandleFunc("/local/", service.serveWSCreator)
-	serveMux.HandleFunc("/network/", service.serveWSCreator)
-	serveMux.HandleFunc("/control/", service.serveWSCreator)
+	// Serve websocket creation endpoints for localhost clients
+	serveMux.HandleFunc("/local/", service.serveLocalWSCreator)
+	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
+	serveMux.HandleFunc("/control/", service.serveLocalWSCreator)
 
-	log.Printf("Serving Named WebSockets Proxy at http://%s:%d/", service.Host, service.Port)
-	log.Printf("(test console available @ http://localhost:%d/console)", service.Port)
+	log.Printf("Serving Named WebSockets Proxy at http://localhost:%d/", service.Port)
 
 	// Listen and serve on all ports (public + loopback addresses)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", service.Port), serveMux); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", service.Port), serveMux); err != nil {
 		log.Fatal("Could not serve proxy. ", err)
 	}
 }
 
-func (service *NamedWebSocket_Service) StartNewDiscoveryServer() {
+func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
+	// Create a new custom http server multiplexer
+	serveMux := http.NewServeMux()
+
+	// Serve secure websocket creation endpoints for network clients (network-only wss endpoints)
+	serveMux.HandleFunc("/", service.serveProxyWSCreator)
+
+	// Generate random server salt for use in TLS-SRP data storage
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, 32)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	srpSaltKey := string(b)
+
+	tlsServerConfig := &tls.Config{
+		SRPLookup: serviceTab,
+		SRPSaltKey: srpSaltKey,
+		SRPSaltSize: len(Salt),
+	}
+
+	tlsSrpListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", service.Port + 1), tlsServerConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port + 1)
+
+	http.Serve(tlsSrpListener, serveMux)
+}
+
+func (service *NamedWebSocket_Service) StartDiscoveryServer() {
 	discoveryServer := &DiscoveryServer{
 		Host: service.Host,
 		Port: service.Port,
@@ -125,7 +187,13 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 	t.Execute(w, service.Port)
 }
 
-func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *http.Request) {
+func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter, r *http.Request) {
+	// Only allow access from localhost
+	if r.Host != fmt.Sprintf("localhost:%d", service.Port) && r.Host != fmt.Sprintf("127.0.0.1:%d", service.Port) {
+		http.Error(w, fmt.Sprintf("Named WebSocket Endpoints are only accessible from the local machine on this port (%d)", service.Port), 403)
+		return
+	}
+
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
@@ -171,5 +239,41 @@ func (service *NamedWebSocket_Service) serveWSCreator(w http.ResponseWriter, r *
 		sock.serveControl(w, r, peerId)
 	} else {
 		sock.serveService(w, r, peerId)
+	}
+}
+
+func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
+	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+		http.Error(w, "Not found", 404)
+		return
+	}
+
+	pathParts := strings.Split(r.URL.Path, "/")
+
+	peerIdStr := pathParts[len(pathParts)-1]
+	serviceHash := pathParts[len(pathParts)-2]
+
+	// Resolve serviceHash to an active named websocket service name
+	serviceBCryptHash, _ := base64.StdEncoding.DecodeString(serviceHash)
+	serviceBCryptHashStr := string(serviceBCryptHash[:])
+
+	for serviceName := range service.namedWebSockets {
+		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
+			log.Printf("Hash matched service %s!", serviceName)
+
+			sock := service.namedWebSockets[fmt.Sprintf("/network/%s", serviceName)]
+			if sock == nil {
+				log.Fatal("Could not find matching sock object")
+			}
+
+			peerId, _ := strconv.Atoi(peerIdStr)
+			sock.serveProxy(w, r, peerId)
+			break
+		}
 	}
 }

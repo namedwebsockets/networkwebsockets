@@ -105,7 +105,7 @@ Some example services built with Named WebSockets:
 
 Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `network` channels on the local network. The proxy connections that result from this process between Named WebSocket Proxies are used to transport WebSocket messages between different network peers using the same *channel name* in the local network.
 
-Named WebSocket channels all use the DNS-SD service type `_ws._tcp` with a unique channel name in the form `<channelName>[<UID>]` (e.g. `myChannel[2049847123]`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/network/myChannel`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
+Named WebSocket channels all use the DNS-SD service type `_nws._tcp` with a unique channel id (e.g. `2049847123`) and include a `path` attribute in the TXT record corresponding to the WebSocket's absolute endpoint path (e.g. `path=/myChannel`). From these advertisements it is possible to resolve Named WebSocket endpoint URLs that remote proxies can use to connect with each other.
 
 When a new `network` WebSocket is created then the local Named WebSockets Proxy must notify (i.e. 'ping') all other Named WebSocket Proxies in the local network about this newly created channel via the DNS-SD broadcast.
 

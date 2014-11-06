@@ -114,6 +114,7 @@ func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, 
 func TestLocalConnection_Broadcast(t *testing.T) {
 	// Make named websocket test server
 	s1 := makeService("localhost", 9021)
+	// go s1.StartNamedWebSocketServer() // port: 9022
 	go s1.StartHTTPServer()
 
 	// Define connection identifiers
@@ -178,16 +179,19 @@ func TestLocalConnection_Broadcast(t *testing.T) {
 
 func TestNetworkConnection_Broadcast(t *testing.T) {
 	// Make named websocket test servers
-	s1 := makeService("localhost", 9022)
-	go s1.StartNewDiscoveryServer()
+	s1 := makeService("localhost", 9023)
+	go s1.StartNamedWebSocketServer() // port: 9024
+	go s1.StartDiscoveryServer()
 	go s1.StartHTTPServer()
 
-	s2 := makeService("localhost", 9023)
-	go s2.StartNewDiscoveryServer()
+	s2 := makeService("localhost", 9025)
+	go s2.StartNamedWebSocketServer() // port: 9026
+	go s2.StartDiscoveryServer()
 	go s2.StartHTTPServer()
 
-	s3 := makeService("localhost", 9024)
-	go s3.StartNewDiscoveryServer()
+	s3 := makeService("localhost", 9027)
+	go s3.StartNamedWebSocketServer() // port: 9028
+	go s3.StartDiscoveryServer()
 	go s3.StartHTTPServer()
 
 	// Define connection identifiers
@@ -199,16 +203,16 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 	)
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9022", "/network/testservice_B", c1_Id)
-	c2 := makeClient(t, "localhost:9022", "/network/testservice_B", c2_Id)
-	c3 := makeClient(t, "localhost:9023", "/network/testservice_B", c3_Id)
-	c4 := makeClient(t, "localhost:9024", "/network/testservice_B", c4_Id)
+	c1 := makeClient(t, "localhost:9023", "/network/testservice_B", c1_Id)
+	c2 := makeClient(t, "localhost:9023", "/network/testservice_B", c2_Id)
+	c3 := makeClient(t, "localhost:9025", "/network/testservice_B", c3_Id)
+	c4 := makeClient(t, "localhost:9027", "/network/testservice_B", c4_Id)
 
 	// Make named websocket test client controllers
-	c1_control := makeClient(t, "localhost:9022", "/control/network/testservice_B", c1_Id)
-	c2_control := makeClient(t, "localhost:9022", "/control/network/testservice_B", c2_Id)
-	c3_control := makeClient(t, "localhost:9023", "/control/network/testservice_B", c3_Id)
-	c4_control := makeClient(t, "localhost:9024", "/control/network/testservice_B", c4_Id)
+	c1_control := makeClient(t, "localhost:9023", "/control/network/testservice_B", c1_Id)
+	c2_control := makeClient(t, "localhost:9023", "/control/network/testservice_B", c2_Id)
+	c3_control := makeClient(t, "localhost:9025", "/control/network/testservice_B", c3_Id)
+	c4_control := makeClient(t, "localhost:9027", "/control/network/testservice_B", c4_Id)
 
 	defer func() {
 		c1_control.Close()
@@ -276,16 +280,19 @@ func TestNetworkConnection_Broadcast(t *testing.T) {
 
 func TestNetworkConnection_DirectMessaging(t *testing.T) {
 	// Make named websocket test servers
-	s1 := makeService("localhost", 9025)
-	go s1.StartNewDiscoveryServer()
+	s1 := makeService("localhost", 9029)
+	go s1.StartNamedWebSocketServer() // port: 9030
+	go s1.StartDiscoveryServer()
 	go s1.StartHTTPServer()
 
-	s2 := makeService("localhost", 9026)
-	go s2.StartNewDiscoveryServer()
+	s2 := makeService("localhost", 9031)
+	go s2.StartNamedWebSocketServer() // port: 9032
+	go s2.StartDiscoveryServer()
 	go s2.StartHTTPServer()
 
-	s3 := makeService("localhost", 9027)
-	go s3.StartNewDiscoveryServer()
+	s3 := makeService("localhost", 9033)
+	go s3.StartNamedWebSocketServer() // port: 9034
+	go s3.StartDiscoveryServer()
 	go s3.StartHTTPServer()
 
 	// Define connection identifiers
@@ -297,16 +304,16 @@ func TestNetworkConnection_DirectMessaging(t *testing.T) {
 	)
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9025", "/network/testservice_C", c1_Id)
-	c2 := makeClient(t, "localhost:9026", "/network/testservice_C", c2_Id)
-	c3 := makeClient(t, "localhost:9026", "/network/testservice_C", c3_Id)
-	c4 := makeClient(t, "localhost:9027", "/network/testservice_C", c4_Id)
+	c1 := makeClient(t, "localhost:9029", "/network/testservice_C", c1_Id)
+	c2 := makeClient(t, "localhost:9031", "/network/testservice_C", c2_Id)
+	c3 := makeClient(t, "localhost:9031", "/network/testservice_C", c3_Id)
+	c4 := makeClient(t, "localhost:9033", "/network/testservice_C", c4_Id)
 
 	// Make named websocket test client controllers
-	c1_control := makeClient(t, "localhost:9025", "/control/network/testservice_C", c1_Id)
-	c2_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c2_Id)
-	c3_control := makeClient(t, "localhost:9026", "/control/network/testservice_C", c3_Id)
-	c4_control := makeClient(t, "localhost:9027", "/control/network/testservice_C", c4_Id)
+	c1_control := makeClient(t, "localhost:9029", "/control/network/testservice_C", c1_Id)
+	c2_control := makeClient(t, "localhost:9031", "/control/network/testservice_C", c2_Id)
+	c3_control := makeClient(t, "localhost:9031", "/control/network/testservice_C", c3_Id)
+	c4_control := makeClient(t, "localhost:9033", "/control/network/testservice_C", c4_Id)
 
 	defer func() {
 		c1_control.Close()

@@ -1,54 +1,53 @@
 package namedwebsockets
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jameskeane/bcrypt"
 	"github.com/richtr/mdns"
+	tls "bitbucket.org/mjl/go-tls-srp"
 )
-
-// Regular expression matchers
-
-var NetworkServiceMatcher = regexp.MustCompile("^([A-Za-z0-9\\._-]{1,255})\\[[0-9]+\\]( \\([0-9]+\\))?$")
 
 /** DISCOVERYCLIENT interface **/
 
 type DiscoveryClient struct {
-	serviceType string
+	ServiceHash string
 	Port        int
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(service *NamedWebSocket_Service, serviceType string, port int) *DiscoveryClient {
+func NewDiscoveryClient(serviceHash string, port int) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
-		serviceType: serviceType,
+		ServiceHash: serviceHash,
 		Port:        port,
 	}
 
-	discoveryClient.Register(service, "local")
+	discoveryClient.Register("local")
 
 	return discoveryClient
 }
 
-func (dc *DiscoveryClient) Register(service *NamedWebSocket_Service, domain string) {
+func (dc *DiscoveryClient) Register(domain string) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	dnssdServiceName := fmt.Sprintf("%s[%d]", dc.serviceType, rand.Int())
+	dnssdServiceId := fmt.Sprintf("%d", rand.Int())
 
 	s := &mdns.MDNSService{
-		Instance: dnssdServiceName,
-		Service:  "_ws._tcp",
+		Instance: dnssdServiceId,
+		Service:  "_nws._tcp",
 		Domain:   domain,
 		Port:     dc.Port,
-		Info:     fmt.Sprintf("path=/network/%s", dc.serviceType),
+		Info:     fmt.Sprintf("path=/%s", dc.ServiceHash),
 	}
 	if err := s.Init(); err != nil {
 		log.Fatalf("err: %v", err)
@@ -61,9 +60,7 @@ func (dc *DiscoveryClient) Register(service *NamedWebSocket_Service, domain stri
 
 	dc.server = serv
 
-	service.advertisedServiceNames[dnssdServiceName] = true
-
-	log.Printf("Network websocket advertised as '%s' in %s network", fmt.Sprintf("%s._ws._tcp", dnssdServiceName), domain)
+	log.Printf("Network websocket advertised as '%s' in %s network", fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
 func (dc *DiscoveryClient) Shutdown() {
@@ -87,7 +84,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 	timeout := 20 * time.Second
 
 	params := &mdns.QueryParam{
-		Service: "_ws._tcp",
+		Service: "_nws._tcp",
 		Domain:  "local",
 		Timeout: timeout,
 		Entries: entries,
@@ -98,105 +95,117 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 		finish := time.After(timeout)
 
 		// Wait for responses until timeout
-		for !complete {
-			select {
-			case e, ok := <-entries:
+		RecordCheck:
+			for !complete {
+				select {
+				case e, ok := <-entries:
 
-				if !ok {
-					continue
-				}
-
-				nameComponents := strings.Split(e.Name, ".")
-				shortName := ""
-
-				for i := len(nameComponents) - 1; i >= 0; i-- {
-					if nameComponents[i] == "_ws" {
-						shortName = strings.Join(nameComponents[:i], ".")
-						break
-					}
-				}
-
-				// DEBUG
-				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
-
-				// Is this a NetworkWebSocket service?
-				if isValid := NetworkServiceMatcher.MatchString(shortName); !isValid {
-					continue
-				}
-
-				// Ignore our own NetworkWebSocket services
-				if isOwned := service.advertisedServiceNames[shortName]; isOwned {
-					continue
-				}
-
-				// Ignore previously discovered NetworkWebSocket services
-				if isRegistered := service.registeredServiceNames[shortName]; isRegistered {
-					continue
-				}
-
-				// Build websocket data from returned information
-				servicePath := "/"
-				serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
-					return r == '=' || r == ',' || r == ';' || r == ' '
-				})
-				if len(serviceParts) > 1 {
-					for i := 0; i < len(serviceParts); i += 2 {
-						if strings.ToLower(serviceParts[i]) == "path" {
-							servicePath = serviceParts[i+1]
-							break
-						}
-					}
-				}
-
-				// Generate unique id for connection
-				rand.Seed(time.Now().UTC().UnixNano())
-				newPeerId := rand.Int()
-
-				serviceName := path.Base(servicePath)
-
-				// Resolve websocket connection
-				sock := service.namedWebSockets[servicePath]
-				if sock == nil {
-					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
-					service.namedWebSockets[servicePath] = sock
-				}
-
-				hosts := [...]string{e.Host, e.AddrV4.String(), e.AddrV6.String()}
-
-				for i := 0; i < len(hosts); i++ {
-
-					// Build URL
-					remoteWSUrl := &url.URL{
-						Scheme: "ws",
-						Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
-						Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
-					}
-
-					log.Printf("Establishing proxy network websocket connection to ws://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
-
-					ws, _, nErr := websocket.DefaultDialer.Dial(remoteWSUrl.String(), map[string][]string{
-						"Origin":                   []string{ds.Host},
-						"X-NetworkWebSocket-Proxy": []string{"true"},
-					})
-					if nErr != nil {
-						log.Printf("Proxy network websocket connection failed: %s", nErr)
+					if !ok {
 						continue
 					}
 
-					proxyConn := NewProxyConnection(newPeerId, ws, false)
+					// DEBUG
+					//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
 
-					proxyConn.addConnection(sock)
+					// Build websocket data from returned information
+					servicePath := "/"
+					serviceHash := ""
 
-					service.registeredServiceNames[shortName] = true
+					serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
+						return r == '=' || r == ',' || r == ';' || r == ' '
+					})
+					if len(serviceParts) > 1 {
+						for i := 0; i < len(serviceParts); i += 2 {
+							if strings.ToLower(serviceParts[i]) == "path" {
+								pathStr := serviceParts[i+1]
+								serviceHashB, _ := base64.StdEncoding.DecodeString( path.Base(pathStr) ) // strip leading '/'
+								serviceHash = string(serviceHashB[:])
+								servicePath = pathStr
+								break
+							}
+						}
+					}
 
-					break
+					shortName := ""
+					serviceName := ""
 
+					// Resolve service hash provided against advertised services
+					for knownServiceName := range service.knownServiceNames {
+						if bcrypt.Match(knownServiceName, serviceHash) {
+
+							serviceName = knownServiceName
+
+							shortName = fmt.Sprintf("/network/%s/", knownServiceName)
+
+							// Ignore our own NetworkWebSocket services
+							if isOwned := service.advertisedServiceNames[serviceName]; isOwned {
+								continue RecordCheck
+							}
+
+							// Ignore previously discovered NetworkWebSocket services
+							if isRegistered := service.registeredServiceNames[serviceName]; isRegistered {
+								continue RecordCheck
+							}
+
+							break
+						}
+					}
+
+					// Generate unique id for connection
+					rand.Seed(time.Now().UTC().UnixNano())
+					newPeerId := rand.Int()
+
+					// Resolve websocket connection
+					sock := service.namedWebSockets[shortName]
+					if sock == nil {
+						sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
+						service.namedWebSockets[shortName] = sock
+					}
+
+					hosts := [...]string{e.Host, e.AddrV4.String(), e.AddrV6.String()}
+
+					for i := 0; i < len(hosts); i++ {
+
+						// Build URL
+						remoteWSUrl := &url.URL{
+							Scheme: "wss",
+							Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
+							Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
+						}
+
+						log.Printf("Establishing proxy network websocket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+
+						// Establish Proxy WebSocket connection over TLS-SRP
+
+						tlsSrpConfig := new(tls.Config)
+						tlsSrpConfig.SRPUser = serviceHash
+						tlsSrpConfig.SRPPassword = serviceName
+
+						tlsSrpDialer := TLSSRPDialer{}
+
+						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
+							"Origin":                   []string{ds.Host},
+							"X-NetworkWebSocket-Proxy": []string{"true"},
+						})
+						if nErr != nil {
+							log.Printf("Proxy network websocket connection failed: %s", nErr)
+							continue
+						}
+
+						proxyConn := NewProxyConnection(newPeerId, ws, false)
+
+						proxyConn.addConnection(sock)
+
+						service.registeredServiceNames[serviceName] = true
+
+						break
+
+					}
+
+				case <-finish:
+					complete = true
 				}
-
-			case <-finish:
-				complete = true
 			}
-		}
 	}()
 
 	// Run the mDNS query
@@ -209,3 +218,61 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 func (ds *DiscoveryServer) Shutdown() {
 	ds.closed = true
 }
+
+
+type TLSSRPDialer struct {
+	*websocket.Dialer
+}
+
+// Dial creates a new TLS-SRP based client connection. Use requestHeader to specify the
+// origin (Origin), subprotocols (Sec-WebSocket-Protocol) and cookies (Cookie).
+// Use the response.Header to get the selected subprotocol
+// (Sec-WebSocket-Protocol) and cookies (Set-Cookie).
+//
+// If the WebSocket handshake fails, ErrBadHandshake is returned along with a
+// non-nil *http.Response so that callers can handle redirects, authentication,
+// etc.
+func (d *TLSSRPDialer) Dial(url *url.URL, tlsSrpConfig *tls.Config, requestHeader http.Header) (*websocket.Conn, *http.Response, error) {
+	if d == nil {
+		d = &TLSSRPDialer{}
+	}
+
+	var deadline time.Time
+	if d.HandshakeTimeout != 0 {
+		deadline = time.Now().Add(d.HandshakeTimeout)
+	}
+
+	netConn, err := tls.Dial("tcp", url.Host, tlsSrpConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer func() {
+		if netConn != nil {
+			netConn.Close()
+		}
+	}()
+
+	if err := netConn.SetDeadline(deadline); err != nil {
+		return nil, nil, err
+	}
+
+	if len(d.Subprotocols) > 0 {
+		h := http.Header{}
+		for k, v := range requestHeader {
+			h[k] = v
+		}
+		h.Set("Sec-Websocket-Protocol", strings.Join(d.Subprotocols, ", "))
+		requestHeader = h
+	}
+
+	conn, resp, err := websocket.NewClient(netConn, url, requestHeader, d.ReadBufferSize, d.WriteBufferSize)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	netConn.SetDeadline(time.Time{})
+	netConn = nil // to avoid close in defer.
+	return conn, resp, nil
+}
+
