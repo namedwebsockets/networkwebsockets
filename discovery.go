@@ -206,7 +206,6 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 
 						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
 							"Origin":                   []string{ds.Host},
-							"X-NetworkWebSocket-Proxy": []string{"true"},
 						})
 						if nErr != nil {
 							log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
