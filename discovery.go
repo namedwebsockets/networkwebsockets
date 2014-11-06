@@ -124,10 +124,19 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 								serviceBCryptHashB, _ := base64.StdEncoding.DecodeString( serviceHash_Base64 )
 								serviceHash_BCrypt = string(serviceBCryptHashB[:])
 
-								log.Printf("Service hash '%s' discovered", serviceHash_BCrypt)
 								break
 							}
 						}
+					}
+
+					// Ignore our own NetworkWebSocket services
+					if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
+						continue RecordCheck
+					}
+
+					// Ignore previously discovered NetworkWebSocket services
+					if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
+						continue RecordCheck
 					}
 
 					shortName := ""
@@ -138,21 +147,9 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					for knownServiceName := range service.knownServiceNames {
 						if bcrypt.Match(knownServiceName, serviceHash_BCrypt) {
 
-							log.Printf("Service hash '%s' identified as service '%s'", serviceHash_BCrypt, knownServiceName)
-
 							serviceName = knownServiceName
 
 							shortName = fmt.Sprintf("/network/%s", knownServiceName)
-
-							// Ignore our own NetworkWebSocket services
-							if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
-								continue RecordCheck
-							}
-
-							// Ignore previously discovered NetworkWebSocket services
-							if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
-								continue RecordCheck
-							}
 
 							isKnown = true
 
@@ -205,7 +202,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 						}
 
 						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
-							"Origin":                   []string{ds.Host},
+							"Origin": []string{ds.Host},
 						})
 						if nErr != nil {
 							log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)

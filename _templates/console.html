@@ -526,16 +526,17 @@
 		</p>
 		<hr>
 		<p>
-			<label for="text"><strong>Message:</strong></label>
+			<label for="text"><strong>Message Contents:</strong></label>
 			<br>
 			<textarea id="text" type="text" rows="4" cols="80" disabled="disabled"></textarea>
 			<br>
 		</p>
+		<p><strong>Broadcast Messaging</strong></p>
 		<p>
 			<input type="radio" name="messageTarget" value="*" checked>
-			<label for="targetAll"><em>Broadcast to all peers</em></label>
+			<label for="targetAll"><em>Broadcast to all connected peers</em></label>
 		</p>
-		<p><strong>Peer Messaging</strong></p>
+		<p><strong>Direct Messaging</strong></p>
 		<p id="peerList">
 			<em>Not available. No peers connected</em>
 			<!-- Will be populated with available peers when they connect to the same service (with the same type) -->
