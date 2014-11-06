@@ -3,7 +3,7 @@ package namedwebsockets
 import (
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/richtr/websocket"
 )
 
 type PeerConnection struct {

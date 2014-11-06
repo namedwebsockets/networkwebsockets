@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/richtr/bcrypt"
+	"github.com/richtr/websocket"
 )
 
 const (

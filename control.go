@@ -3,9 +3,10 @@ package namedwebsockets
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
 	"time"
+
+	"github.com/richtr/websocket"
 )
 
 type ControlConnection struct {

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/richtr/bcrypt"
 	"github.com/richtr/mdns"
+	"github.com/richtr/websocket"
 	tls "github.com/richtr/go-tls-srp"
 )
 

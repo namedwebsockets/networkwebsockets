@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/richtr/websocket"
 )
 
 type ProxyConnection struct {

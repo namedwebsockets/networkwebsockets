@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/richtr/websocket"
 )
 
 // Make a new Named WebSocket server

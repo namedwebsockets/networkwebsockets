@@ -11,8 +11,8 @@ import (
 	"strings"
 	"text/template"
 
-	tls "github.com/richtr/go-tls-srp"
 	"github.com/richtr/bcrypt"
+	tls "github.com/richtr/go-tls-srp"
 )
 
 var (
