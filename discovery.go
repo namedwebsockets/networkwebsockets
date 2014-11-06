@@ -130,6 +130,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 					serviceName := ""
 
 					// Resolve service hash provided against advertised services
+					isKnown := false
 					for knownServiceName := range service.knownServiceNames {
 						if bcrypt.Match(knownServiceName, serviceHash) {
 
@@ -147,8 +148,14 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 								continue RecordCheck
 							}
 
+							isKnown = true
+
 							break
 						}
+					}
+
+					if !isKnown {
+						continue RecordCheck
 					}
 
 					// Generate unique id for connection
