@@ -175,9 +175,13 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 						service.namedWebSockets[shortName] = sock
 					}
 
-					hosts := [...]string{e.Host, e.AddrV4.String(), e.AddrV6.String()}
+					hosts := [...]string{e.AddrV4.String(), e.AddrV6.String()}
 
 					for i := 0; i < len(hosts); i++ {
+
+						if hosts[i] == "<nil>" {
+							continue
+						}
 
 						// Build URL
 						remoteWSUrl := url.URL{
@@ -194,14 +198,18 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 						tlsSrpConfig.SRPUser = serviceHash_Base64
 						tlsSrpConfig.SRPPassword = serviceName
 
-						tlsSrpDialer := &TLSSRPDialer{}
+						tlsSrpDialer := &TLSSRPDialer{
+							HandshakeTimeout: time.Duration(10) * time.Second,
+							ReadBufferSize: 8096,
+							WriteBufferSize: 8096,
+						}
 
 						ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
 							"Origin":                   []string{ds.Host},
 							"X-NetworkWebSocket-Proxy": []string{"true"},
 						})
 						if nErr != nil {
-							log.Printf("Proxy network websocket connection failed: %s", nErr)
+							log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
 							continue
 						}
 
@@ -234,7 +242,15 @@ func (ds *DiscoveryServer) Shutdown() {
 
 
 type TLSSRPDialer struct {
-	websocket.Dialer
+	//websocket.Dialer
+
+	TLSClientConfig *tls.Config
+
+	HandshakeTimeout time.Duration
+
+	ReadBufferSize, WriteBufferSize int
+
+	Subprotocols []string
 }
 
 // Dial creates a new TLS-SRP based client connection. Use requestHeader to specify the
