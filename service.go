@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,7 +30,7 @@ var (
 
 	// TLS-SRP configuration components
 
-	// WARNING: for real servers, every user should have a unique, randomly generated salt.
+	// We deliverately only use a weak salt because we don't persistently store TLS-SRP credential data
 	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 
 	serviceTab = SRPCredentialsStore(map[string]string{})
@@ -47,8 +48,7 @@ func (cs SRPCredentialsStore) Lookup(user string) (v, s []byte, grp tls.SRPGroup
 	if p == "" {
 		return nil, nil, grp, nil
 	}
-	// WARNING: for real servers, you read the verifier from a file or database,
-	// because you don't want to store the password in plaintext.
+
 	v = tls.SRPVerifier(user, p, Salt, grp)
 	return v, Salt, grp, nil
 }
@@ -106,9 +106,17 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 	// Serve secure websocket creation endpoints for network clients (network-only wss endpoints)
 	serveMux.HandleFunc("/", service.serveProxyWSCreator)
 
+	// Generate random server salt for use in TLS-SRP data storage
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, 32)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	srpSaltKey := string(b)
+
 	tlsServerConfig := &tls.Config{
 		SRPLookup: serviceTab,
-		SRPSaltKey: "ip8KYXjj blAtCGBA tzeEWDzG S3wPdLhz",
+		SRPSaltKey: srpSaltKey,
 		SRPSaltSize: len(Salt),
 	}
 
