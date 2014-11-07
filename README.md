@@ -6,8 +6,9 @@ Named Web Sockets
 Named Web Sockets allow web pages, native applications and devices to create *encrypted* Web Socket *networks within networks* by discovering, binding and connecting peers that share the same *channel type* and *channel name* on local machines and local networks. With this technology web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves to fulfill a variety of uses:
 
 * For discovering matching peer services on the local device and/or the local network.
-* To create full-duplex, encrypted communications channels between native applications and web applications.
+* To create full-duplex, encrypted communications channels between network devices, native applications and web applications.
 * To create full-duplex, encrypted communication channels between web pages on different domains.
+* To import and export data between network devices, native applications and web applications.
 * To create initial local session signalling channels for establishing P2P sessions (for e.g. [WebRTC](#examples) bootstrapping).
 * To establish low latency local network multiplayer signalling channels for games.
 * To enable collaborative editing, sharing and other forms of communication between different web pages and applications on a local device or a local network.
