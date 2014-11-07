@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -78,7 +79,7 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 	return service
 }
 
-func (service *NamedWebSocket_Service) StartHTTPServer() {
+func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -90,15 +91,22 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
 	serveMux.HandleFunc("/control/", service.serveLocalWSCreator)
 
+	// Listen and on loopback address + port
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
+	if err != nil {
+		log.Fatal("Could not serve proxy. ", err)
+	}
+
 	log.Printf("Serving Named WebSockets Proxy at http://localhost:%d/", service.Port)
 
-	// Listen and serve on all ports (public + loopback addresses)
-	if err := http.ListenAndServe(fmt.Sprintf("localhost:%d", service.Port), serveMux); err != nil {
-		log.Fatal("Could not serve proxy. ", err)
+	if async {
+		go http.Serve(listener, serveMux)
+	} else {
+		http.Serve(listener, serveMux)
 	}
 }
 
-func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
+func (service *NamedWebSocket_Service) StartProxyServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -119,6 +127,7 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 		SRPSaltSize: len(Salt),
 	}
 
+	// Listen on all addresses + port
 	tlsSrpListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", service.Port+1), tlsServerConfig)
 	if err != nil {
 		log.Fatal(err)
@@ -130,7 +139,7 @@ func (service *NamedWebSocket_Service) StartNamedWebSocketServer() {
 
 }
 
-func (service *NamedWebSocket_Service) StartDiscoveryServer() {
+func (service *NamedWebSocket_Service) StartDiscoveryServer(timeoutSeconds int) {
 	discoveryServer := &DiscoveryServer{
 		Host: service.Host,
 		Port: service.Port,
@@ -141,7 +150,7 @@ func (service *NamedWebSocket_Service) StartDiscoveryServer() {
 	log.Print("Listening for network websocket advertisements in local network...")
 
 	for !discoveryServer.closed {
-		discoveryServer.Browse(service)
+		discoveryServer.Browse(service, timeoutSeconds)
 	}
 }
 

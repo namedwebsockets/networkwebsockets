@@ -77,11 +77,11 @@ type DiscoveryServer struct {
 	closed bool
 }
 
-func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
+func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSeconds int) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	timeout := 10 * time.Second
+	timeout := time.Duration(timeoutSeconds) * time.Second
 
 	params := &mdns.QueryParam{
 		Service: "_nws._tcp",
@@ -105,7 +105,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service) {
 				}
 
 				// DEBUG
-				//log.Printf("Found proxy web socket [%s] @ [%s:%d] TXT[%s]", shortName, e.Host, e.Port, e.Info)
+				//log.Printf("Found proxy web socket [%s:%d] TXT[%s]", e.Host, e.Port, e.Info)
 
 				// Build websocket data from returned information
 				servicePath := "/"
