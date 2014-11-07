@@ -19,9 +19,9 @@ A web page or application can create a new Named Web Socket by choosing an appro
 
 ### Getting started
 
-This repository contains the proof-of-concept _Named Web Sockets Proxy_, written in Go, currently required to experiment with and use Named Web Sockets. You can either [download a pre-built Named Web Sockets binary](https://github.com/namedwebsockets/namedwebsockets/releases) or [build the Named Web Sockets Proxy from source](#build-from-source) to get up and running.
+This repository contains the proof-of-concept _Named Web Sockets Proxy_, written in Go, currently required to experiment with and use Named Web Sockets. You can either [download a pre-built Named Web Sockets binary](https://github.com/namedwebsockets/namedwebsockets/releases) or [build the Named Web Sockets Proxy from source](https://github.com/namedwebsockets/namedwebsockets/wiki/Building-a-Named-Web-Sockets-Proxy-from-Source) to get up and running.
 
-Once you have a Named Web Sockets Proxy up and running on your local machine then you are ready to [create and share your own Named Web Sockets](#named-websocket-interfaces). A number of [Named Web Socket examples](#examples) are also provided to help get you started.
+Once you have a Named Web Sockets Proxy up and running on your local machine then you are ready to [create and share your own Named Web Sockets](#named-web-socket-interfaces). A number of [Named Web Socket client examples](#examples) are also provided to help get you started.
 
 ##### [Go to Downloads Page](https://github.com/namedwebsockets/namedwebsockets/releases)
 
