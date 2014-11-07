@@ -22,33 +22,7 @@ This repository contains the proof-of-concept _Named Web Sockets Proxy_, written
 
 Once you have a Named Web Sockets Proxy up and running on your local machine then you are ready to [create and share your own Named Web Sockets](#named-websocket-interfaces). A number of [Named Web Socket examples](#examples) are also provided to help get you started.
 
-#### Download a pre-built binary
-
-You can download and run the latest pre-built version of the Named Web Sockets Proxy from the [downloads page](https://github.com/namedwebsockets/namedwebsockets/releases).
-
-[Go to the latest downloads page](https://github.com/namedwebsockets/namedwebsockets/releases)
-
-#### Build from source
-
-Optionally you can run a Named Web Sockets Proxy from the latest source files contained in this repository with the following instructions:
-
-1. [Install go](http://golang.org/doc/install).
-
-2. Download this repository and its dependencies using `go get`:
-
-        go get github.com/namedwebsockets/cmd/namedwebsockets
-
-3. Locate and change directory to the newly downloaded repository:
-
-        cd `go list -f '{{.Dir}}' github.com/namedwebsockets/cmd/namedwebsockets`
-
-4. Run your Named Web Sockets Proxy:
-
-        go run run.go
-
-At this point your Named Web Sockets Proxy should be up and ready for usage at `localhost:9009`!
-
-You can now start using your Named Web Sockets Proxy via any of the [Named Web Socket Proxy Interfaces](#named-web-socket-interfaces) described below.
+##### [Go to Downloads Page](https://github.com/namedwebsockets/namedwebsockets/releases)
 
 ### Named Web Socket Interfaces
 
