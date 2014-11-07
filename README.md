@@ -71,18 +71,6 @@ Some example services built with Named Web Sockets:
 * [PubSub example](https://github.com/namedwebsockets/namedwebsockets/tree/master/examples/pubsub)
 * [WebRTC example](https://github.com/namedwebsockets/namedwebsockets/tree/master/examples/webrtc)
 
-### Discovery and service advertisement mechanism
-
-Named Websockets uses multicast DNS-SD (i.e. Zeroconf/Bonjour) to discover `network` channels on the local network. The proxy connections that result from this process between Named Web Socket Proxies are used to transport Web Socket messages between different network peers using the same *channel name* in the local network.
-
-Named Web Socket channels all use the DNS-SD service type `_nws._tcp` with a unique channel id (e.g. `2049847123`) and include a `path` attribute in the TXT record corresponding to the Web Socket's absolute endpoint path (e.g. `path=/myChannel`). From these advertisements it is possible to resolve Named Web Socket endpoint URLs that remote proxies can use to connect with each other.
-
-When a new `network` Web Socket is created then the local Named Web Sockets Proxy must notify (i.e. 'ping') all other Named Web Socket Proxies in the local network about this newly created channel via the DNS-SD broadcast.
-
-When a remote Named Web Sockets Proxy detects a new `network` on the multicast DNS-SD port then it immediately establishes a connection to that Named Web Socket's URL and then creates its own new `network` Web Socket to advertise back (i.e. 'pong') to other peers.
-
-These processes repeats on all Named Web Socket Proxies whenever they receive a previously unseen 'ping' or 'pong' Named Web Socket advertisement broadcast.
-
 ### Feedback
 
 If you find any bugs or issues please report them on the [Named Web Sockets Issue Tracker](https://github.com/namedwebsockets/namedwebsockets/issues).
@@ -91,4 +79,6 @@ If you would like to contribute to this project please consider [forking this re
 
 ### License
 
-MIT.
+The MIT License (MIT) Copyright (c) 2014 Rich Tibbett.
+
+See the [LICENSE](https://github.com/namedwebsockets/namedwebsockets/tree/master/LICENSE.txt) file for more information.
