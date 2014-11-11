@@ -35,6 +35,9 @@ type NamedWebSocket struct {
 
 	serviceHash string
 
+	// 'network' or 'local' scoped named web socket service
+	serviceScope string
+
 	// The current websocket connection control instances to this named websocket
 	controllers []*ControlConnection
 
@@ -55,7 +58,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  8192,
 	WriteBufferSize: 8192,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // allow all origins
+		return true // allow all cross-origin access
 	},
 }
 
@@ -72,6 +75,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
 		serviceHash:     serviceHash_BCrypt,
+		serviceScope:    scope,
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
@@ -121,13 +125,13 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryClient == nil {
 		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port)
+		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port, fmt.Sprintf("/%s/%s", sock.serviceScope, sock.serviceHash))
 		sock.discoveryClient.Register("local")
 	}
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serveService(w http.ResponseWriter, r *http.Request, id int) {
+func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id int) {
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return

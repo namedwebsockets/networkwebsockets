@@ -18,13 +18,15 @@ import (
 type DiscoveryClient struct {
 	ServiceHash string
 	Port        int
+	Path        string
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceHash string, port int) *DiscoveryClient {
+func NewDiscoveryClient(serviceHash string, port int, path string) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
 		ServiceHash: serviceHash,
 		Port:        port,
+		Path:        path,
 	}
 
 	return discoveryClient
@@ -39,7 +41,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 		Service:  "_nws._tcp",
 		Domain:   domain,
 		Port:     dc.Port,
-		Info:     fmt.Sprintf("hash=%s,path=/%s", dc.ServiceHash, dc.ServiceHash),
+		Info:     fmt.Sprintf("hash=%s,path=%s", dc.ServiceHash, dc.Path),
 	}
 
 	if err := s.Init(); err != nil {

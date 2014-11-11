@@ -19,13 +19,17 @@ import (
 var (
 	// Regular expression matchers
 
-	serviceNameRegexStr = "[A-Za-z0-9\\._-]{1,255}"
+	serviceNameRegexStr = "[A-Za-z0-9/\\+=\\*\\._-]{1,255}"
 
 	peerIdRegexStr = "[0-9]{4,}"
 
-	isNetworkRequest = regexp.MustCompile(fmt.Sprintf("^(.*/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isControlRequest = regexp.MustCompile(fmt.Sprintf("(/control/(network|local)/%s/%s)", serviceNameRegexStr, peerIdRegexStr))
+	isValidBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+
+	isNetworkServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+
+	isControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 
@@ -78,6 +82,8 @@ func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 	// Serve websocket creation endpoints for localhost clients
 	serveMux.HandleFunc("/local/", service.serveLocalWSCreator)
 	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
+
+	// Serve websocket control endpoint for localhost clients
 	serveMux.HandleFunc("/control/", service.serveLocalWSCreator)
 
 	// Listen and on loopback address + port
@@ -99,8 +105,9 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
-	// Serve secure websocket creation endpoints for network clients (network-only wss endpoints)
-	serveMux.HandleFunc("/", service.serveProxyWSCreator)
+	// Serve secure websocket creation endpoints for network clients
+	serveMux.HandleFunc("/local/", service.serveProxyWSCreator)
+	serveMux.HandleFunc("/network/", service.serveProxyWSCreator)
 
 	// Generate random server salt for use in TLS-SRP data storage
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -193,13 +200,18 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
-	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+	if isValidRequest := isValidLocalRequest.MatchString(r.URL.Path); !isValidRequest {
 		http.Error(w, "Not found", 404)
 		return
 	}
 
-	isNetwork := isNetworkRequest.MatchString(r.URL.Path)
-	isControl := isControlRequest.MatchString(r.URL.Path)
+	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+		http.Error(w, "Bad request", 400)
+		return
+	}
+
+	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
+	isControl := isControlServiceRequest.MatchString(r.URL.Path)
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
@@ -232,7 +244,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 	if isControl {
 		sock.serveControl(w, r, peerId)
 	} else {
-		sock.serveService(w, r, peerId)
+		sock.servePeer(w, r, peerId)
 	}
 }
 
@@ -243,13 +255,20 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 		return
 	}
 
-	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+	if isValidRequest := isValidBroadcastRequest.MatchString(r.URL.Path); !isValidRequest {
 		http.Error(w, "Not found", 404)
 		return
 	}
 
-	if r.URL.Path == "/" {
-		fmt.Fprint(w, "<h2>A Named WebSockets Proxy is running on this host</h2>")
+	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
+		http.Error(w, "Bad request", 400)
+		return
+	}
+
+	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
+
+	if !isNetwork {
+		http.Error(w, "Not found", 404)
 		return
 	}
 
