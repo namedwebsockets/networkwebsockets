@@ -283,7 +283,6 @@ type CredentialsStore map[string]string
 func (cs CredentialsStore) Lookup(user string) (v, s []byte, grp tls.SRPGroup, err error) {
 	grp = tls.SRPGroup4096
 
-	log.Println("Lookup for", user)
 	p := cs[user]
 	if p == "" {
 		return nil, nil, grp, nil
