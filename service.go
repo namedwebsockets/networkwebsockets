@@ -34,24 +34,8 @@ var (
 	// We deliberately only use a weak salt because we don't persistently store TLS-SRP credential data
 	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 
-	serviceTab = SRPCredentialsStore(map[string]string{})
+	serviceTab = CredentialsStore(map[string]string{})
 )
-
-// Simple in-memory storage table for TLS-SRP usernames/passwords
-type SRPCredentialsStore map[string]string
-
-func (cs SRPCredentialsStore) Lookup(user string) (v, s []byte, grp tls.SRPGroup, err error) {
-	grp = tls.SRPGroup4096
-
-	log.Println("Lookup for", user)
-	p := cs[user]
-	if p == "" {
-		return nil, nil, grp, nil
-	}
-
-	v = tls.SRPVerifier(user, p, Salt, grp)
-	return v, Salt, grp, nil
-}
 
 type NamedWebSocket_Service struct {
 	Host string
@@ -61,9 +45,12 @@ type NamedWebSocket_Service struct {
 	namedWebSockets map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
-	knownServiceNames       map[string]bool
-	advertisedServiceHashes map[string]bool
-	registeredServiceHashes map[string]bool
+	knownServiceNames map[string]bool
+
+	AdvertisedEntries map[string]bool
+
+	ResolvedServiceRecords   map[string]*NamedWebSocket_DNSRecord
+	UnresolvedServiceRecords map[string]*NamedWebSocket_DNSRecord
 }
 
 func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
@@ -71,10 +58,12 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		Host: host,
 		Port: port,
 
-		namedWebSockets:         make(map[string]*NamedWebSocket),
-		knownServiceNames:       make(map[string]bool),
-		advertisedServiceHashes: make(map[string]bool),
-		registeredServiceHashes: make(map[string]bool),
+		namedWebSockets:   make(map[string]*NamedWebSocket),
+		knownServiceNames: make(map[string]bool),
+		AdvertisedEntries: make(map[string]bool),
+
+		ResolvedServiceRecords:   make(map[string]*NamedWebSocket_DNSRecord),
+		UnresolvedServiceRecords: make(map[string]*NamedWebSocket_DNSRecord),
 	}
 	return service
 }
@@ -140,10 +129,7 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 }
 
 func (service *NamedWebSocket_Service) StartDiscoveryServer(timeoutSeconds int) {
-	discoveryServer := &DiscoveryServer{
-		Host: service.Host,
-		Port: service.Port,
-	}
+	discoveryServer := NewDiscoveryServer(service.Host, service.Port)
 
 	defer discoveryServer.Shutdown()
 
@@ -262,6 +248,11 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 		return
 	}
 
+	if r.URL.Path == "/" {
+		fmt.Fprint(w, "<h2>A Named WebSockets Proxy is running on this host</h2>")
+		return
+	}
+
 	pathParts := strings.Split(r.URL.Path, "/")
 
 	peerIdStr := pathParts[len(pathParts)-1]
@@ -273,7 +264,6 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	for serviceName := range service.knownServiceNames {
 		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
-
 			sock := service.namedWebSockets[fmt.Sprintf("/network/%s", serviceName)]
 			if sock == nil {
 				log.Fatal("Could not find matching NamedWebSocket_Service object for service")
@@ -284,4 +274,21 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 			break
 		}
 	}
+}
+
+/** Simple in-memory storage table for TLS-SRP usernames/passwords **/
+
+type CredentialsStore map[string]string
+
+func (cs CredentialsStore) Lookup(user string) (v, s []byte, grp tls.SRPGroup, err error) {
+	grp = tls.SRPGroup4096
+
+	log.Println("Lookup for", user)
+	p := cs[user]
+	if p == "" {
+		return nil, nil, grp, nil
+	}
+
+	v = tls.SRPVerifier(user, p, Salt, grp)
+	return v, Salt, grp, nil
 }

@@ -2,22 +2,18 @@ package namedwebsockets
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
-	"net/http"
-	"net/url"
-	"path"
 	"strings"
 	"time"
 
 	"github.com/richtr/bcrypt"
-	tls "github.com/richtr/go-tls-srp"
 	"github.com/richtr/mdns"
-	"github.com/richtr/websocket"
 )
 
-/** DISCOVERYCLIENT interface **/
+/** Named Web Socket DNS-SD Discovery Client interface **/
 
 type DiscoveryClient struct {
 	ServiceHash string
@@ -31,15 +27,11 @@ func NewDiscoveryClient(serviceHash string, port int) *DiscoveryClient {
 		Port:        port,
 	}
 
-	discoveryClient.Register("local")
-
 	return discoveryClient
 }
 
 func (dc *DiscoveryClient) Register(domain string) {
-
 	rand.Seed(time.Now().UTC().UnixNano())
-
 	dnssdServiceId := fmt.Sprintf("%d", rand.Int())
 
 	s := &mdns.MDNSService{
@@ -47,8 +39,9 @@ func (dc *DiscoveryClient) Register(domain string) {
 		Service:  "_nws._tcp",
 		Domain:   domain,
 		Port:     dc.Port,
-		Info:     fmt.Sprintf("path=/%s", dc.ServiceHash),
+		Info:     fmt.Sprintf("hash=%s,path=/%s", dc.ServiceHash, dc.ServiceHash),
 	}
+
 	if err := s.Init(); err != nil {
 		log.Fatalf("err: %v", err)
 	}
@@ -69,7 +62,7 @@ func (dc *DiscoveryClient) Shutdown() {
 	}
 }
 
-/** DISCOVERYSERVER interface **/
+/** Named Web Socket DNS-SD Discovery Server interface **/
 
 type DiscoveryServer struct {
 	Host   string
@@ -77,12 +70,24 @@ type DiscoveryServer struct {
 	closed bool
 }
 
+func NewDiscoveryServer(host string, port int) *DiscoveryServer {
+	discoveryServer := &DiscoveryServer{
+		Host: host,
+		Port: port,
+	}
+
+	return discoveryServer
+}
+
 func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSeconds int) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
+	unresolvedServiceRecords := make(map[string]*NamedWebSocket_DNSRecord)
+
 	timeout := time.Duration(timeoutSeconds) * time.Second
 
+	// Only look for Named Web Socket DNS-SD services
 	params := &mdns.QueryParam{
 		Service: "_nws._tcp",
 		Domain:  "local",
@@ -95,139 +100,79 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 		finish := time.After(timeout)
 
 		// Wait for responses until timeout
-	RecordCheck:
 		for !complete {
 			select {
-			case e, ok := <-entries:
+			case discoveredService, ok := <-entries:
 
 				if !ok {
 					continue
 				}
 
-				// DEBUG
-				//log.Printf("Found proxy web socket [%s:%d] TXT[%s]", e.Host, e.Port, e.Info)
-
-				// Build websocket data from returned information
-				servicePath := "/"
-				serviceHash_Base64 := ""
-				serviceHash_BCrypt := ""
-
-				serviceParts := strings.FieldsFunc(e.Info, func(r rune) bool {
-					return r == '=' || r == ',' || r == ';' || r == ' '
-				})
-				if len(serviceParts) > 1 {
-					for i := 0; i < len(serviceParts); i += 2 {
-						if strings.ToLower(serviceParts[i]) == "path" {
-							servicePath = serviceParts[i+1]
-							serviceHash_Base64 = path.Base(servicePath) // strip leading '/'
-
-							serviceBCryptHashB, _ := base64.StdEncoding.DecodeString(serviceHash_Base64)
-							serviceHash_BCrypt = string(serviceBCryptHashB[:])
-
-							break
-						}
-					}
+				serviceRecord, err := NewNamedWebSocketRecordFromDNSRecord(discoveredService)
+				if err != nil {
+					log.Printf("err: %v", err)
+					continue
 				}
 
 				// Ignore our own NetworkWebSocket services
-				if isOwned := service.advertisedServiceHashes[serviceHash_Base64]; isOwned {
-					continue RecordCheck
+				if isOwned := service.AdvertisedEntries[serviceRecord.Hash_Base64]; isOwned {
+					continue
 				}
 
 				// Ignore previously discovered NetworkWebSocket services
-				if isRegistered := service.registeredServiceHashes[serviceHash_Base64]; isRegistered {
-					continue RecordCheck
+				if isResolved := service.ResolvedServiceRecords[serviceRecord.Hash_BCrypt]; isResolved != nil {
+					continue
 				}
 
-				shortName := ""
 				serviceName := ""
+				localServicePath := ""
 
 				// Resolve service hash provided against advertised services
 				isKnown := false
 				for knownServiceName := range service.knownServiceNames {
-					if bcrypt.Match(knownServiceName, serviceHash_BCrypt) {
-
+					if bcrypt.Match(knownServiceName, serviceRecord.Hash_BCrypt) {
 						serviceName = knownServiceName
-
-						shortName = fmt.Sprintf("/network/%s", knownServiceName)
-
+						localServicePath = fmt.Sprintf("/network/%s", knownServiceName)
 						isKnown = true
-
 						break
 					}
 				}
 
 				if !isKnown {
-					continue RecordCheck
+					// Store as an unresolved DNS record
+					unresolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
+					continue
 				}
-
-				// Generate unique id for connection
-				rand.Seed(time.Now().UTC().UnixNano())
-				newPeerId := rand.Int()
 
 				// Resolve websocket connection
-				sock := service.namedWebSockets[shortName]
+				sock := service.namedWebSockets[localServicePath]
 				if sock == nil {
 					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
-					service.namedWebSockets[shortName] = sock
+					service.namedWebSockets[localServicePath] = sock
 				}
 
-				hosts := [...]string{e.AddrV4.String(), e.AddrV6.String()}
-
-				for i := 0; i < len(hosts); i++ {
-
-					if hosts[i] == "<nil>" {
-						continue
-					}
-
-					// Build URL
-					remoteWSUrl := url.URL{
-						Scheme: "wss",
-						Host:   fmt.Sprintf("%s:%d", hosts[i], e.Port),
-						Path:   fmt.Sprintf("%s/%d", servicePath, newPeerId),
-					}
-
-					log.Printf("Establishing proxy network websocket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
-
-					// Establish Proxy WebSocket connection over TLS-SRP
-
-					tlsSrpConfig := &tls.Config{
-						SRPUser:     serviceHash_Base64,
-						SRPPassword: serviceName,
-					}
-
-					tlsSrpDialer := &TLSSRPDialer{
-						HandshakeTimeout: time.Duration(10) * time.Second,
-						ReadBufferSize:   8192,
-						WriteBufferSize:  8192,
-					}
-
-					ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, tlsSrpConfig, map[string][]string{
-						"Origin": []string{ds.Host},
-					})
-					if nErr != nil {
-						log.Printf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
-						continue
-					}
-
-					proxyConn := NewProxyConnection(newPeerId, ws, false)
-
-					proxyConn.addConnection(sock)
-
-					service.registeredServiceHashes[serviceHash_Base64] = true
-
-					break
-
+				// Create proxy websocket connection
+				if _, dErr := sock.dialDNSRecord(serviceRecord, serviceName); dErr != nil {
+					log.Printf("err: %v", dErr)
+					continue
 				}
+
+				// Set DNS record as resolved
+				service.ResolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
 
 			case <-finish:
 				complete = true
 			}
 		}
+
+		// Replace unresolved DNS records cache
+		service.UnresolvedServiceRecords = unresolvedServiceRecords
+
 	}()
 
-	// Run the mDNS query
+	// Run the mDNS/DNS-SD query
 	err := mdns.Query(params)
+
 	if err != nil {
 		log.Fatalf("err: %v", err)
 	}
@@ -237,63 +182,49 @@ func (ds *DiscoveryServer) Shutdown() {
 	ds.closed = true
 }
 
-type TLSSRPDialer struct {
-	//websocket.Dialer
+/** Named Web Socket DNS Record interface **/
 
-	TLSClientConfig *tls.Config
+type NamedWebSocket_DNSRecord struct {
+	*mdns.ServiceEntry
 
-	HandshakeTimeout time.Duration
-
-	ReadBufferSize, WriteBufferSize int
-
-	Subprotocols []string
+	Path        string
+	Hash_Base64 string
+	Hash_BCrypt string
 }
 
-// Dial creates a new TLS-SRP based client connection. Use requestHeader to specify the
-// origin (Origin), subprotocols (Sec-WebSocket-Protocol) and cookies (Cookie).
-// Use the response.Header to get the selected subprotocol
-// (Sec-WebSocket-Protocol) and cookies (Set-Cookie).
-//
-// If the WebSocket handshake fails, ErrBadHandshake is returned along with a
-// non-nil *http.Response so that callers can handle redirects, authentication,
-// etc.
-func (d *TLSSRPDialer) Dial(url url.URL, tlsSrpConfig *tls.Config, requestHeader http.Header) (*websocket.Conn, *http.Response, error) {
-	var deadline time.Time
+func NewNamedWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*NamedWebSocket_DNSRecord, error) {
+	servicePath := ""
+	serviceHash_Base64 := ""
+	serviceHash_BCrypt := ""
 
-	if d.HandshakeTimeout != 0 {
-		deadline = time.Now().Add(d.HandshakeTimeout)
+	if serviceEntry.Info == "" {
+		return nil, errors.New("Could not find associated TXT record for advertised Named Web Socket service")
 	}
 
-	netConn, err := tls.Dial("tcp", url.Host, tlsSrpConfig)
-	if err != nil {
-		return nil, nil, err
-	}
+	serviceParts := strings.FieldsFunc(serviceEntry.Info, func(r rune) bool {
+		return r == '=' || r == ',' || r == ';' || r == ' '
+	})
+	if len(serviceParts) > 1 {
+		for i := 0; i < len(serviceParts); i += 2 {
+			if strings.ToLower(serviceParts[i]) == "path" {
+				servicePath = serviceParts[i+1]
+			}
+			if strings.ToLower(serviceParts[i]) == "hash" {
+				serviceHash_Base64 = serviceParts[i+1]
 
-	defer func() {
-		if netConn != nil {
-			netConn.Close()
+				if res, err := base64.StdEncoding.DecodeString(serviceHash_Base64); err == nil {
+					serviceHash_BCrypt = string(res)
+				}
+			}
 		}
-	}()
-
-	if err := netConn.SetDeadline(deadline); err != nil {
-		return nil, nil, err
 	}
 
-	if len(d.Subprotocols) > 0 {
-		h := http.Header{}
-		for k, v := range requestHeader {
-			h[k] = v
-		}
-		h.Set("Sec-Websocket-Protocol", strings.Join(d.Subprotocols, ", "))
-		requestHeader = h
+	if servicePath == "" || serviceHash_Base64 == "" || serviceHash_BCrypt == "" {
+		return nil, errors.New("Could not resolve the provided Named Web Socket DNS Record")
 	}
 
-	conn, resp, err := websocket.NewClient(netConn, &url, requestHeader, d.ReadBufferSize, d.WriteBufferSize)
-	if err != nil {
-		return nil, resp, err
-	}
+	// Create and return a new Named Web Socket DNS Record with the parsed information
+	newNamedWebSocketDNSRecord := &NamedWebSocket_DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
 
-	netConn.SetDeadline(time.Time{})
-	netConn = nil // to avoid close in defer.
-	return conn, resp, nil
+	return newNamedWebSocketDNSRecord, nil
 }
