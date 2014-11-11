@@ -89,7 +89,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 		serviceTab[sock.serviceHash] = sock.serviceName
 
 		// Mark this service as advertised (to ignore during mDNS/DNS-SD discovery process)
-		service.AdvertisedEntries[sock.serviceHash] = true
+		service.AdvertisedServiceHashes[sock.serviceHash] = true
 
 		go sock.advertise(port + 1)
 

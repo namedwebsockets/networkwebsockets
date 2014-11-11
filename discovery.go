@@ -115,7 +115,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				}
 
 				// Ignore our own NetworkWebSocket services
-				if isOwned := service.AdvertisedEntries[serviceRecord.Hash_Base64]; isOwned {
+				if isOwned := service.AdvertisedServiceHashes[serviceRecord.Hash_Base64]; isOwned {
 					continue
 				}
 
