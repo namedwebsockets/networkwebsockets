@@ -149,6 +149,12 @@ func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 
+	requestedWebSocketSubProtocols := r.Header.Get("Sec-Websocket-Protocol")
+	if requestedWebSocketSubProtocols != "nws-proxy-draft-01" {
+		http.Error(w, "Bad Request", 400)
+		return
+	}
+
 	ws, err := sock.upgradeToWebSocket(w, r)
 	if err != nil {
 		http.Error(w, "Not found", 404)
@@ -235,7 +241,8 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 		}
 
 		ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, map[string][]string{
-			"Origin": []string{"localhost"},
+			"Origin":                 []string{"localhost"},
+			"Sec-WebSocket-Protocol": []string{"nws-proxy-draft-01"},
 		})
 		if nErr != nil {
 			errStr := fmt.Sprintf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
