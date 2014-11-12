@@ -63,10 +63,16 @@ var upgrader = websocket.Upgrader{
 }
 
 // Create a new NamedWebSocket instance (local or network-based) with a given service type
-func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNetwork bool, port int) *NamedWebSocket {
-	scope := "network"
-	if isNetwork == false {
+func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isNetwork, isControl bool) *NamedWebSocket {
+	var scope string
+	var group *NamedWebSocket_Service_Group
+
+	if !isNetwork {
 		scope = "local"
+		group = service.localSockets
+	} else {
+		scope = "network"
+		group = service.networkSockets
 	}
 
 	serviceHash_Base64, _ := bcrypt.HashBytes([]byte(serviceName))
@@ -84,22 +90,23 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 
 	go sock.messageDispatcher()
 
-	log.Printf("New %s websocket '%s' created with hash[%s].", scope, sock.serviceName, sock.serviceHash)
+	if !isControl {
+		log.Printf("New %s websocket '%s' created with hash[%s].", sock.serviceScope, sock.serviceName, sock.serviceHash)
 
-	if isNetwork {
-		service.knownServiceNames[sock.serviceName] = true
+		group.knownServiceNames[sock.serviceName] = true
 
 		// Add TLS-SRP credentials for access to this service to credentials store
+		// TODO isolate this per socket
 		serviceTab[sock.serviceHash] = sock.serviceName
 
 		// Mark this service as advertised (to ignore during mDNS/DNS-SD discovery process)
-		service.AdvertisedServiceHashes[sock.serviceHash] = true
+		group.AdvertisedServiceHashes[sock.serviceHash] = true
 
 		go sock.advertise(port + 1)
 
 		// Attempt to resolve discovered unknown service hashes with this service name
 		unresolvedServiceRecords := make(map[string]*NamedWebSocket_DNSRecord)
-		for _, record := range service.UnresolvedServiceRecords {
+		for _, record := range group.UnresolvedServiceRecords {
 
 			if bcrypt.Match(sock.serviceName, record.Hash_BCrypt) {
 				if _, dErr := sock.dialDNSRecord(record, sock.serviceName); dErr != nil {
@@ -107,7 +114,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 				}
 
 				// Add to resolved entries
-				service.ResolvedServiceRecords[record.Hash_BCrypt] = record
+				group.ResolvedServiceRecords[record.Hash_BCrypt] = record
 			} else {
 				// Maintain as an unresolved entry
 				unresolvedServiceRecords[record.Hash_BCrypt] = record
@@ -116,7 +123,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 		}
 
 		// Replace unresolved entries cache
-		service.UnresolvedServiceRecords = unresolvedServiceRecords
+		group.UnresolvedServiceRecords = unresolvedServiceRecords
 	}
 
 	return sock
@@ -125,7 +132,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, isNe
 func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryClient == nil {
 		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port, fmt.Sprintf("/%s/%s", sock.serviceScope, sock.serviceHash))
+		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port, fmt.Sprintf("/%s/%s", sock.serviceScope, sock.serviceHash), sock.serviceScope)
 		sock.discoveryClient.Register("local")
 	}
 }

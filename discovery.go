@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"strings"
 	"time"
 
@@ -13,18 +14,52 @@ import (
 	"github.com/richtr/mdns"
 )
 
+const (
+	network_ipv4mdns = "224.0.0.251"
+	network_ipv6mdns = "ff02::fb"
+	network_mdnsPort = 5353
+
+	/*local_ipv4mdns = "127.0.0.1"
+	local_ipv6mdns = "::1"
+	local_mdnsPort = 5352*/
+	local_ipv4mdns = "239.0.0.251"
+	local_ipv6mdns = "ff01::e:1"
+	local_mdnsPort = 5352
+)
+
+var (
+	network_ipv4Addr = &net.UDPAddr{
+		IP:   net.ParseIP(network_ipv4mdns),
+		Port: network_mdnsPort,
+	}
+	network_ipv6Addr = &net.UDPAddr{
+		IP:   net.ParseIP(network_ipv6mdns),
+		Port: network_mdnsPort,
+	}
+	local_ipv4Addr = &net.UDPAddr{
+		IP:   net.ParseIP(local_ipv4mdns),
+		Port: local_mdnsPort,
+	}
+	local_ipv6Addr = &net.UDPAddr{
+		IP:   net.ParseIP(local_ipv6mdns),
+		Port: local_mdnsPort,
+	}
+)
+
 /** Named Web Socket DNS-SD Discovery Client interface **/
 
 type DiscoveryClient struct {
 	ServiceHash string
+	Scope       string
 	Port        int
 	Path        string
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceHash string, port int, path string) *DiscoveryClient {
+func NewDiscoveryClient(serviceHash string, port int, path, scope string) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
 		ServiceHash: serviceHash,
+		Scope:       scope,
 		Port:        port,
 		Path:        path,
 	}
@@ -48,14 +83,33 @@ func (dc *DiscoveryClient) Register(domain string) {
 		log.Fatalf("err: %v", err)
 	}
 
-	serv, err := mdns.NewServer(&mdns.Config{Zone: s})
+	var mdnsClientConfig *mdns.Config
+
+	// Advertise service to the correct endpoint (local or network)
+	if dc.Scope == "network" {
+		mdnsClientConfig = &mdns.Config{
+			IPv4Addr: network_ipv4Addr,
+			IPv6Addr: network_ipv6Addr,
+		}
+	} else {
+		mdnsClientConfig = &mdns.Config{
+			IPv4Addr: local_ipv4Addr,
+			IPv6Addr: local_ipv6Addr,
+		}
+	}
+
+	// Add the DNS zone record to advertise
+	mdnsClientConfig.Zone = s
+
+	serv, err := mdns.NewServer(mdnsClientConfig)
+
 	if err != nil {
 		log.Fatalf("err: %v", err)
 	}
 
 	dc.server = serv
 
-	log.Printf("Network websocket advertised as '%s' in %s network", fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
+	log.Printf("New %s websocket advertised as '%s' in %s network", dc.Scope, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
 func (dc *DiscoveryClient) Shutdown() {
@@ -67,15 +121,13 @@ func (dc *DiscoveryClient) Shutdown() {
 /** Named Web Socket DNS-SD Discovery Server interface **/
 
 type DiscoveryServer struct {
-	Host   string
-	Port   int
+	Scope  string
 	closed bool
 }
 
-func NewDiscoveryServer(host string, port int) *DiscoveryServer {
+func NewDiscoveryServer(scope string) *DiscoveryServer {
 	discoveryServer := &DiscoveryServer{
-		Host: host,
-		Port: port,
+		Scope: scope,
 	}
 
 	return discoveryServer
@@ -89,12 +141,30 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 
+	var targetIPv4 *net.UDPAddr
+	var targetIPv6 *net.UDPAddr
+	var group *NamedWebSocket_Service_Group
+
+	if ds.Scope == "local" {
+		targetIPv4 = local_ipv4Addr
+		targetIPv6 = local_ipv6Addr
+
+		group = service.localSockets
+	} else {
+		targetIPv4 = network_ipv4Addr
+		targetIPv6 = network_ipv6Addr
+
+		group = service.networkSockets
+	}
+
 	// Only look for Named Web Socket DNS-SD services
 	params := &mdns.QueryParam{
-		Service: "_nws._tcp",
-		Domain:  "local",
-		Timeout: timeout,
-		Entries: entries,
+		Service:  "_nws._tcp",
+		Domain:   "local",
+		Timeout:  timeout,
+		Entries:  entries,
+		IPv4mdns: targetIPv4,
+		IPv6mdns: targetIPv6,
 	}
 
 	go func() {
@@ -117,12 +187,12 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				}
 
 				// Ignore our own NetworkWebSocket services
-				if isOwned := service.AdvertisedServiceHashes[serviceRecord.Hash_Base64]; isOwned {
+				if isOwned := group.AdvertisedServiceHashes[serviceRecord.Hash_Base64]; isOwned {
 					continue
 				}
 
 				// Ignore previously discovered NetworkWebSocket services
-				if isResolved := service.ResolvedServiceRecords[serviceRecord.Hash_BCrypt]; isResolved != nil {
+				if isResolved := group.ResolvedServiceRecords[serviceRecord.Hash_BCrypt]; isResolved != nil {
 					continue
 				}
 
@@ -131,10 +201,10 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 
 				// Resolve service hash provided against advertised services
 				isKnown := false
-				for knownServiceName := range service.knownServiceNames {
+				for knownServiceName := range group.knownServiceNames {
 					if bcrypt.Match(knownServiceName, serviceRecord.Hash_BCrypt) {
 						serviceName = knownServiceName
-						localServicePath = fmt.Sprintf("/network/%s", knownServiceName)
+						localServicePath = fmt.Sprintf("/%s/%s", ds.Scope, knownServiceName)
 						isKnown = true
 						break
 					}
@@ -147,10 +217,16 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				}
 
 				// Resolve websocket connection
-				sock := service.namedWebSockets[localServicePath]
+				sock := group.Services[localServicePath]
 				if sock == nil {
-					sock = NewNamedWebSocket(service, serviceName, true, ds.Port)
-					service.namedWebSockets[localServicePath] = sock
+
+					isNetwork := true
+					if ds.Scope == "local" {
+						isNetwork = false
+					}
+
+					sock = NewNamedWebSocket(service, serviceName, service.Port, isNetwork, false)
+					group.Services[localServicePath] = sock
 				}
 
 				// Create proxy websocket connection
@@ -160,7 +236,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				}
 
 				// Set DNS record as resolved
-				service.ResolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
+				group.ResolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
 
 			case <-finish:
 				complete = true
@@ -168,7 +244,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 		}
 
 		// Replace unresolved DNS records cache
-		service.UnresolvedServiceRecords = unresolvedServiceRecords
+		group.UnresolvedServiceRecords = unresolvedServiceRecords
 
 	}()
 

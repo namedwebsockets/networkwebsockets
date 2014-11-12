@@ -27,9 +27,11 @@ var (
 
 	isValidBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isNetworkServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isNetworkServiceRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+
+	isNetworkControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 
@@ -45,8 +47,13 @@ type NamedWebSocket_Service struct {
 	Host string
 	Port int
 
+	localSockets   *NamedWebSocket_Service_Group
+	networkSockets *NamedWebSocket_Service_Group
+}
+
+type NamedWebSocket_Service_Group struct {
 	// All Named WebSocket services (local or network) that this service manages
-	namedWebSockets map[string]*NamedWebSocket
+	Services map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
 	knownServiceNames map[string]bool
@@ -62,14 +69,21 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		Host: host,
 		Port: port,
 
-		namedWebSockets:         make(map[string]*NamedWebSocket),
+		localSockets:   NewNamedWebSocketServiceGroup(),
+		networkSockets: NewNamedWebSocketServiceGroup(),
+	}
+	return service
+}
+
+func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
+	return &NamedWebSocket_Service_Group{
+		Services:                make(map[string]*NamedWebSocket),
 		knownServiceNames:       make(map[string]bool),
 		AdvertisedServiceHashes: make(map[string]bool),
 
 		ResolvedServiceRecords:   make(map[string]*NamedWebSocket_DNSRecord),
 		UnresolvedServiceRecords: make(map[string]*NamedWebSocket_DNSRecord),
 	}
-	return service
 }
 
 func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
@@ -132,24 +146,39 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port+1)
 
 	http.Serve(tlsSrpListener, serveMux)
-
 }
 
-func (service *NamedWebSocket_Service) StartDiscoveryServer(timeoutSeconds int) {
-	discoveryServer := NewDiscoveryServer(service.Host, service.Port)
+func (service *NamedWebSocket_Service) StartDiscoveryServers(timeoutSeconds int) {
+	networkDiscoveryServer := NewDiscoveryServer("network")
 
-	defer discoveryServer.Shutdown()
+	defer networkDiscoveryServer.Shutdown()
 
-	log.Print("Listening for network websocket advertisements in local network...")
+	go func() {
+		localDiscoveryServer := NewDiscoveryServer("local")
 
-	for !discoveryServer.closed {
-		discoveryServer.Browse(service, timeoutSeconds)
+		defer localDiscoveryServer.Shutdown()
+
+		for !localDiscoveryServer.closed {
+			localDiscoveryServer.Browse(service, timeoutSeconds)
+		}
+	}()
+
+	log.Print("Listening for named websocket service advertisements...")
+
+	for !networkDiscoveryServer.closed {
+		networkDiscoveryServer.Browse(service, timeoutSeconds)
 	}
 }
 
 func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Only allow console access from localhost
+	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
+		http.Error(w, fmt.Sprintf("Named WebSockets Test Console is only accessible from the local machine (i.e http://localhost:%d/console)", service.Port), 403)
+		return
+	}
 
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
@@ -163,12 +192,6 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 
 	if r.URL.Path != "/console" {
 		http.Error(w, "Not found", 404)
-		return
-	}
-
-	// Only allow console access from localhost
-	if r.Host != fmt.Sprintf("localhost:%d", service.Port) && r.Host != fmt.Sprintf("127.0.0.1:%d", service.Port) {
-		http.Error(w, fmt.Sprintf("Named WebSockets Test Console is only accessible from the local machine (i.e http://localhost:%d/console)", service.Port), 403)
 		return
 	}
 
@@ -189,9 +212,9 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 }
 
 func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter, r *http.Request) {
-	// Only allow access from localhost
-	if r.Host != fmt.Sprintf("localhost:%d", service.Port) && r.Host != fmt.Sprintf("127.0.0.1:%d", service.Port) {
-		http.Error(w, fmt.Sprintf("Named WebSocket Endpoints are only accessible from the local machine on this port (%d)", service.Port), 403)
+	// Only allow access from localhost to all services
+	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
+		http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
 		return
 	}
 
@@ -210,8 +233,10 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
-	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
 	isControl := isControlServiceRequest.MatchString(r.URL.Path)
+
+	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
+	isNetworkControl := isNetworkControlServiceRequest.MatchString(r.URL.Path)
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
@@ -231,11 +256,18 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
+	var group *NamedWebSocket_Service_Group
+	if isNetwork || isNetworkControl {
+		group = service.networkSockets
+	} else {
+		group = service.localSockets
+	}
+
 	// Resolve websocket connection (also, split Local and Network types with the same name)
-	sock := service.namedWebSockets[servicePath]
+	sock := group.Services[servicePath]
 	if sock == nil {
-		sock = NewNamedWebSocket(service, serviceName, isNetwork, service.Port)
-		service.namedWebSockets[servicePath] = sock
+		sock = NewNamedWebSocket(service, serviceName, service.Port, isNetwork, isControl)
+		group.Services[servicePath] = sock
 	}
 
 	peerId, _ := strconv.Atoi(peerIdStr)
@@ -267,9 +299,12 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
 
+	var group *NamedWebSocket_Service_Group
+
 	if !isNetwork {
-		http.Error(w, "Not found", 404)
-		return
+		group = service.localSockets
+	} else {
+		group = service.networkSockets
 	}
 
 	pathParts := strings.Split(r.URL.Path, "/")
@@ -277,15 +312,27 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 	peerIdStr := pathParts[len(pathParts)-1]
 	serviceHash := pathParts[len(pathParts)-2]
 
+	serviceScope := pathParts[len(pathParts)-3]
+
 	// Resolve serviceHash to an active named websocket service name
 	serviceBCryptHash, _ := base64.StdEncoding.DecodeString(serviceHash)
 	serviceBCryptHashStr := string(serviceBCryptHash)
 
-	for serviceName := range service.knownServiceNames {
+	for serviceName := range group.knownServiceNames {
 		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
-			sock := service.namedWebSockets[fmt.Sprintf("/network/%s", serviceName)]
+
+			if serviceScope == "local" {
+				// Only allow services to connect to *local* services access from localhost addresses
+				if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
+					http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
+					return
+				}
+			}
+
+			sock := group.Services[fmt.Sprintf("/%s/%s", serviceScope, serviceName)]
 			if sock == nil {
-				log.Fatal("Could not find matching NamedWebSocket_Service object for service")
+				log.Printf("Could not find matching %s NamedWebSocket object for service %s", serviceScope, serviceName)
+				continue
 			}
 
 			peerId, _ := strconv.Atoi(peerIdStr)
@@ -293,6 +340,21 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 			break
 		}
 	}
+}
+
+func (service *NamedWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {
+	allowedLocalHosts := map[string]bool{
+		fmt.Sprintf("localhost:%d", service.Port):        true,
+		fmt.Sprintf("127.0.0.1:%d", service.Port):        true,
+		fmt.Sprintf("::1:%d", service.Port):              true,
+		fmt.Sprintf("%s:%d", service.Host, service.Port): true,
+	}
+
+	if allowedLocalHosts[host] {
+		return true
+	}
+
+	return false
 }
 
 /** Simple in-memory storage table for TLS-SRP usernames/passwords **/

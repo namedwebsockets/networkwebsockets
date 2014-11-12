@@ -471,12 +471,12 @@ func TestNetworkConnection_SameOrigin_DirectMessaging(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9025)
 	go s1.StartProxyServer() // port: 9026
-	go s1.StartDiscoveryServer(1) // 1 second interval between searches
+	go s1.StartDiscoveryServers(1) // 1 second interval between searches
 	s1.StartHTTPServer(true)
 
 	s2 := makeService("localhost", 9027)
 	go s2.StartProxyServer() // port: 9028
-	go s2.StartDiscoveryServer(1) // 1 second interval between searches
+	go s2.StartDiscoveryServers(1) // 1 second interval between searches
 	s2.StartHTTPServer(true)
 
 	// Define connection identifiers
@@ -521,17 +521,17 @@ func TestNetworkConnection_SameOrigin_DirectMessaging(t *testing.T) {
 	// Make named websocket test servers
 	s1 := makeService("localhost", 9029)
 	go s1.StartProxyServer() // port: 9030
-	go s1.StartDiscoveryServer(1)
+	go s1.StartDiscoveryServers(1)
 	s1.StartHTTPServer(true)
 
 	s2 := makeService("localhost", 9031)
 	go s2.StartProxyServer() // port: 9032
-	go s2.StartDiscoveryServer(1)
+	go s2.StartDiscoveryServers(1)
 	s2.StartHTTPServer(true)
 
 	s3 := makeService("localhost", 9033)
 	go s3.StartProxyServer() // port: 9034
-	go s3.StartDiscoveryServer(1)
+	go s3.StartDiscoveryServers(1)
 	s3.StartHTTPServer(true)
 
 	// Define connection identifiers
