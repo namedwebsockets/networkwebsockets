@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -67,6 +68,19 @@ type NamedWebSocket_Service_Group struct {
 }
 
 func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
+	if host == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			log.Printf("Could not determine device hostname: %v\n", err)
+			return nil
+		}
+		host = hostname
+	}
+
+	if port <= 1024 || port >= 65534 {
+		port = 9009
+	}
+
 	service := &NamedWebSocket_Service{
 		Host: host,
 		Port: port,
@@ -90,6 +104,17 @@ func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
 	}
 }
 
+func (service *NamedWebSocket_Service) Start() {
+	// Start TLS-SRP Named WebSocket (wss) server
+	go service.StartProxyServer()
+
+	// Start mDNS/DNS-SD discovery service (with 10 second network polling interval)
+	go service.StartDiscoveryServers(10)
+
+	// Start HTTP/WebSocket endpoint server (blocking call)
+	service.StartHTTPServer(false)
+}
+
 func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
@@ -110,7 +135,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 		log.Fatal("Could not serve proxy. ", err)
 	}
 
-	log.Printf("Serving Named WebSockets Proxy at http://localhost:%d/", service.Port)
+	log.Printf("Serving Named Web Socket Service at ws://localhost:%d/", service.Port)
 
 	if async {
 		go http.Serve(listener, serveMux)
@@ -155,7 +180,7 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 
 	service.ProxyPort, _ = strconv.Atoi(port)
 
-	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.ProxyPort)
+	log.Printf("Serving Named Web Socket Proxy at wss://%s:%d/", service.Host, service.ProxyPort)
 
 	http.Serve(tlsSrpListener, serveMux)
 }
@@ -174,8 +199,6 @@ func (service *NamedWebSocket_Service) StartDiscoveryServers(timeoutSeconds int)
 			localDiscoveryServer.Browse(service, timeoutSeconds)
 		}
 	}()
-
-	log.Print("Listening for named websocket service advertisements...")
 
 	for !networkDiscoveryServer.closed {
 		networkDiscoveryServer.Browse(service, timeoutSeconds)
