@@ -47,6 +47,8 @@ type NamedWebSocket_Service struct {
 	Host string
 	Port int
 
+	ProxyPort int
+
 	localSockets   *NamedWebSocket_Service_Group
 	networkSockets *NamedWebSocket_Service_Group
 }
@@ -68,6 +70,8 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 	service := &NamedWebSocket_Service{
 		Host: host,
 		Port: port,
+
+		ProxyPort: 0,
 
 		localSockets:   NewNamedWebSocketServiceGroup(),
 		networkSockets: NewNamedWebSocketServiceGroup(),
@@ -138,12 +142,20 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	}
 
 	// Listen on all addresses + port
-	tlsSrpListener, err := tls.Listen("tcp", fmt.Sprintf(":%d", service.Port+1), tlsServerConfig)
+	tlsSrpListener, err := tls.Listen("tcp", ":0", tlsServerConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.Port+1)
+	// Obtain and store the port of the proxy endpoint
+	_, port, err := net.SplitHostPort(tlsSrpListener.Addr().String())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service.ProxyPort, _ = strconv.Atoi(port)
+
+	log.Printf("Serving Named WebSockets Federation Server at wss://%s:%d/", service.Host, service.ProxyPort)
 
 	http.Serve(tlsSrpListener, serveMux)
 }

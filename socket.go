@@ -102,7 +102,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 		// Mark this service as advertised (to ignore during mDNS/DNS-SD discovery process)
 		group.AdvertisedServiceHashes[sock.serviceHash] = true
 
-		go sock.advertise(port + 1)
+		go sock.advertise(service.ProxyPort)
 
 		// Attempt to resolve discovered unknown service hashes with this service name
 		unresolvedServiceRecords := make(map[string]*NamedWebSocket_DNSRecord)
