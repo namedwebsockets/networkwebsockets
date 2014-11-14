@@ -216,7 +216,7 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 	}
 
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
@@ -226,20 +226,20 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 	}
 
 	if r.URL.Path != "/console" {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Not Found", 404)
 		return
 	}
 
 	consoleHTML, err := Asset("_templates/console.html")
 	if err != nil {
 		// Asset was not found.
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Not Found", 404)
 		return
 	}
 
 	t := template.Must(template.New("console").Parse(string(consoleHTML)))
 	if t == nil {
-		http.Error(w, "Internal server error", 501)
+		http.Error(w, "Internal Server Error", 501)
 		return
 	}
 
@@ -254,17 +254,17 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 	}
 
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
 	if isValidRequest := isValidLocalRequest.MatchString(r.URL.Path); !isValidRequest {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Not Found", 404)
 		return
 	}
 
 	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
-		http.Error(w, "Bad request", 400)
+		http.Error(w, "Bad Request", 400)
 		return
 	}
 
@@ -287,7 +287,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 	}
 
 	if isValid := isValidServiceName.MatchString(serviceName); !isValid {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Not Found", 404)
 		return
 	}
 
@@ -318,17 +318,17 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
 	if isValidRequest := isValidBroadcastRequest.MatchString(r.URL.Path); !isValidRequest {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Not Found", 404)
 		return
 	}
 
 	if isValidWSUpgradeRequest := strings.ToLower(r.Header.Get("Upgrade")); isValidWSUpgradeRequest != "websocket" {
-		http.Error(w, "Bad request", 400)
+		http.Error(w, "Bad Request", 400)
 		return
 	}
 
@@ -372,9 +372,12 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 			peerId, _ := strconv.Atoi(peerIdStr)
 			sock.serveProxy(w, r, peerId)
-			break
+			return
 		}
 	}
+
+	http.Error(w, "Not Found", 404)
+	return
 }
 
 func (service *NamedWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {

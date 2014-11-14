@@ -140,13 +140,14 @@ func (sock *NamedWebSocket) advertise(port int) {
 // Set up a new web socket connection
 func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id int) {
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
 	ws, err := sock.upgradeToWebSocket(w, r)
 	if err != nil {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Bad Request", 400)
+		return
 	}
 
 	peerConn := NewPeerConnection(id, ws)
@@ -156,7 +157,7 @@ func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id
 // Set up a new web socket connection
 func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id int) {
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
@@ -168,7 +169,8 @@ func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, i
 
 	ws, err := sock.upgradeToWebSocket(w, r)
 	if err != nil {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Bad Request", 400)
+		return
 	}
 
 	proxyConn := NewProxyConnection(id, ws, true)
@@ -178,13 +180,14 @@ func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, i
 // Set up a new web socket connection
 func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id int) {
 	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
 	ws, err := sock.upgradeToWebSocket(w, r)
 	if err != nil {
-		http.Error(w, "Not found", 404)
+		http.Error(w, "Bad Request", 400)
+		return
 	}
 
 	controlConn := NewControlConnection(id, ws)
