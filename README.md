@@ -3,7 +3,7 @@ Named Web Sockets
 
 #### Dynamic binding, peer management and local service discovery for Web Sockets ####
 
-Named Web Sockets allow web pages, native applications and devices to create *encrypted* Web Socket *networks within networks* by discovering, binding and connecting peers that share the same *channel type* and *channel name* on local machines and local networks. With this technology web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves to fulfill a variety of uses:
+Named Web Sockets allow web pages, native applications and devices to create [*encrypted*](https://github.com/namedwebsockets/namedwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)) Web Socket *networks within networks* by discovering, binding and connecting peers that share the same *channel type* and *channel name* on local machines and local networks. With this technology web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves to fulfill a variety of uses:
 
 * For discovering matching peer services on the local device and/or the local network.
 * To create full-duplex, encrypted communications channels between network devices, native applications and web applications.
@@ -16,6 +16,8 @@ Named Web Sockets allow web pages, native applications and devices to create *en
 A web page or application can create a new Named Web Socket by choosing an appropriate *channel type* (`local` or `network`) and *channel name* (any alphanumeric name) via any of the available [Named Web Socket interfaces](#named-web-socket-interfaces). When other web pages or applications create their own Named Web Socket connection with the same *type* and *name* they will join any matching Named Web Socket network.
 
 ![Named Web Sockets](https://raw.githubusercontent.com/namedwebsockets/namedwebsockets/images/networkwebsockets_diagram.png "Named Web Sockets")
+
+You can read more about the network-level security used by Named Web Sockets on [this wiki page](https://github.com/namedwebsockets/namedwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)).
 
 ### Getting started
 
