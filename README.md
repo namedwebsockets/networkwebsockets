@@ -98,14 +98,14 @@ Devices and services running on the local machine can register Network Web Socke
 To create a new _broadcast_ Network Web Socket connection to a channel from anywhere on the local machine you can establish a new Web Socket connection to:
 
 ```
-ws://localhost:<port>/network/<channelName>/<peer_id>
+ws://localhost:<port>/network/<channelName>/<peerId>
 ```
 
 where:
 
 * `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
 * `channelName` is the name of the channel you want to create, and;
-* `peer_id` is a new random id to identify your new peer on the network.
+* `peerId` is a new random id to identify your new peer on the network.
 
 This websocket connection will act as a broadcast channel between you and all other matching channel peers (i.e. other Network Web Socket connections using the same `<channelName>`) across the local network.
 
@@ -114,14 +114,14 @@ To be notified when peers connect and disconnect from this channel, and to send 
 You can listen for channel _control_ messages by establishing a new Web Socket connection to:
 
 ```
-ws://localhost:<port>/control/network/<channelName>/<peer_id>
+ws://localhost:<port>/control/network/<channelName>/<peerId>
 ```
 
 where:
 
 * `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
 * `channelName` is the name of the channel you want to receive notifications for, and;
-* `peer_id` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
+* `peerId` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
 
 Messages sent and received on this channel have a pre-defined message format.
 
