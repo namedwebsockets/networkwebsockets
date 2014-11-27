@@ -58,9 +58,9 @@ We can then send a _broadcast_ message to all the other _currently known_ channe
   ws.send('This is a broadcast message to *all* other channel peers');
 ```
 
-When we create a Network Web Socket connection object then the Network Web Socket proxy will start to discover and connect to all other `myChannelName` channel peers that are being advertised in the local network.
+When we create a Network Web Socket connection object then the Network Web Socket Proxy will start to discover and connect to all other `myChannelName` channel peers that are being advertised in the local network.
 
-Each time a new channel peer is discovered in the network a Web Socket proxy connection to that peer is established and a new `connect` event is be fired against our Network Web Socket object:
+Each time a new channel peer is discovered in the network a Web Socket proxy connection to that peer is established and a new `connect` event is queued and fired against our root Network Web Socket object:
 
 ```javascript
   ws.onconnect = function(event) {
