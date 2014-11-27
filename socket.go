@@ -48,7 +48,7 @@ type NamedWebSocket struct {
 	broadcastBuffer chan *Message
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
-	discoveryClient *DiscoveryClient
+	discoveryService *DiscoveryService
 }
 
 var upgrader = websocket.Upgrader{
@@ -118,10 +118,10 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 }
 
 func (sock *NamedWebSocket) advertise(port int) {
-	if sock.discoveryClient == nil {
+	if sock.discoveryService == nil {
 		// Advertise new socket type on the network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceName, sock.serviceHash, port, fmt.Sprintf("/network/%s", sock.serviceHash))
-		sock.discoveryClient.Register("local")
+		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, port, fmt.Sprintf("/network/%s", sock.serviceHash))
+		sock.discoveryService.Register("local")
 	}
 }
 

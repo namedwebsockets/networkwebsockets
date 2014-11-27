@@ -33,7 +33,7 @@ var (
 
 /** Named Web Socket DNS-SD Discovery Client interface **/
 
-type DiscoveryClient struct {
+type DiscoveryService struct {
 	ServiceName string
 	ServiceHash string
 	Port        int
@@ -41,18 +41,18 @@ type DiscoveryClient struct {
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceName, serviceHash string, port int, path string) *DiscoveryClient {
-	discoveryClient := &DiscoveryClient{
+func NewDiscoveryService(serviceName, serviceHash string, port int, path string) *DiscoveryService {
+	discoveryService := &DiscoveryService{
 		ServiceName: serviceName,
 		ServiceHash: serviceHash,
 		Port:        port,
 		Path:        path,
 	}
 
-	return discoveryClient
+	return discoveryService
 }
 
-func (dc *DiscoveryClient) Register(domain string) {
+func (dc *DiscoveryService) Register(domain string) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	dnssdServiceId := fmt.Sprintf("%d", rand.Int())
 
@@ -90,7 +90,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 	log.Printf("New '%s' channel peer advertised as '%s' in %s network", dc.ServiceName, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
-func (dc *DiscoveryClient) Shutdown() {
+func (dc *DiscoveryService) Shutdown() {
 	if dc.server != nil {
 		dc.server.Shutdown()
 	}
@@ -98,17 +98,17 @@ func (dc *DiscoveryClient) Shutdown() {
 
 /** Named Web Socket DNS-SD Discovery Server interface **/
 
-type DiscoveryServer struct {
+type DiscoveryBrowser struct {
 	closed bool
 }
 
-func NewDiscoveryServer() *DiscoveryServer {
-	discoveryServer := &DiscoveryServer{}
+func NewDiscoveryBrowser() *DiscoveryBrowser {
+	discoveryBrowser := &DiscoveryBrowser{}
 
-	return discoveryServer
+	return discoveryBrowser
 }
 
-func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSeconds int) {
+func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSeconds int) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
@@ -218,7 +218,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 	}
 }
 
-func (ds *DiscoveryServer) Shutdown() {
+func (ds *DiscoveryBrowser) Shutdown() {
 	ds.closed = true
 }
 

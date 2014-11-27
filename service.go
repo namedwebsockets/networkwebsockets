@@ -48,6 +48,8 @@ type NamedWebSocket_Service struct {
 
 	networkSockets *NamedWebSocket_Service_Group
 
+	discoveryBrowser *DiscoveryBrowser
+
 	down chan int // blocks until .Stop() is called on this service
 }
 
@@ -86,6 +88,8 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 
 		networkSockets: NewNamedWebSocketServiceGroup(),
 
+		discoveryBrowser: NewDiscoveryBrowser(),
+
 		down: make(chan int),
 	}
 
@@ -105,7 +109,7 @@ func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
 
 func (service *NamedWebSocket_Service) Start() <-chan int {
 	// Start mDNS/DNS-SD Network Web Socket discovery service
-	go service.StartDiscoveryServer(10)
+	go service.StartDiscoveryBrowser(10)
 
 	// Start HTTP/Network Web Socket creation server
 	go service.StartHTTPServer()
@@ -180,15 +184,13 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	http.Serve(tlsSrpListener, serveMux)
 }
 
-func (service *NamedWebSocket_Service) StartDiscoveryServer(timeoutSeconds int) {
-	networkDiscoveryServer := NewDiscoveryServer()
-
-	defer networkDiscoveryServer.Shutdown()
+func (service *NamedWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
+	defer service.discoveryBrowser.Shutdown()
 
 	log.Printf("Listening for Named Web Socket services on the local network...")
 
-	for !networkDiscoveryServer.closed {
-		networkDiscoveryServer.Browse(service, timeoutSeconds)
+	for !service.discoveryBrowser.closed {
+		service.discoveryBrowser.Browse(service, timeoutSeconds)
 	}
 }
 
