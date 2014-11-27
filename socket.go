@@ -35,9 +35,6 @@ type NamedWebSocket struct {
 
 	serviceHash string
 
-	// 'network' or 'local' scoped named web socket service
-	serviceScope string
-
 	// The current websocket connection control instances to this named websocket
 	controllers []*ControlConnection
 
@@ -62,18 +59,9 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Create a new NamedWebSocket instance (local or network-based) with a given service type
-func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isNetwork, isControl bool) *NamedWebSocket {
-	var scope string
-	var group *NamedWebSocket_Service_Group
-
-	if !isNetwork {
-		scope = "local"
-		group = service.localSockets
-	} else {
-		scope = "network"
-		group = service.networkSockets
-	}
+// Create a new NamedWebSocket instance with a given service type
+func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isControl bool) *NamedWebSocket {
+	group := service.networkSockets
 
 	serviceHash_Base64, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_BCrypt := base64.StdEncoding.EncodeToString(serviceHash_Base64)
@@ -81,7 +69,6 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
 		serviceHash:     serviceHash_BCrypt,
-		serviceScope:    scope,
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
@@ -90,8 +77,9 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 
 	go sock.messageDispatcher()
 
+	log.Printf("New '%s' channel peer created.", sock.serviceName)
+
 	if !isControl {
-		log.Printf("New %s websocket '%s' created with hash[%s].", sock.serviceScope, sock.serviceName, sock.serviceHash)
 
 		group.knownServiceNames[sock.serviceName] = true
 
@@ -131,8 +119,8 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 
 func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryClient == nil {
-		// Advertise new socket type on the local network
-		sock.discoveryClient = NewDiscoveryClient(sock.serviceHash, port, fmt.Sprintf("/%s/%s", sock.serviceScope, sock.serviceHash), sock.serviceScope)
+		// Advertise new socket type on the network
+		sock.discoveryClient = NewDiscoveryClient(sock.serviceName, sock.serviceHash, port, fmt.Sprintf("/network/%s", sock.serviceHash))
 		sock.discoveryClient.Register("local")
 	}
 }
@@ -259,11 +247,11 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 			"Sec-WebSocket-Protocol": []string{"nws-proxy-draft-01"},
 		})
 		if nErr != nil {
-			errStr := fmt.Sprintf("Proxy network websocket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
+			errStr := fmt.Sprintf("Proxy named web socket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
 			return nil, errors.New(errStr)
 		}
 
-		log.Printf("Established proxy network websocket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
 		proxyConn := NewProxyConnection(newPeerId, ws, false)
 
@@ -273,7 +261,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 
 	}
 
-	return nil, errors.New("Could not establish proxy network websocket connection")
+	return nil, errors.New("Could not establish proxy named web socket connection")
 
 }
 

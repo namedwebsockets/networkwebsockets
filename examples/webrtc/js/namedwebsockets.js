@@ -1,5 +1,5 @@
 /***
- * NetworkWebSocket + LocalWebSocket shim library
+ * NetworkWebSocket shim library
  * ----------------------------------------------------------------
  *
  * API Usage:
@@ -8,21 +8,16 @@
  *     // Connect with other peers using the same service name in the current network
  *     var ws = new NetworkWebSocket("myServiceName");
  *
- * or:
- *
- *     // Connect with other peers using the same service name on the local device
- *     var ws = new LocalWebSocket("myServiceName");
- *
  * ...then use the returned `ws` object just like a normal JavaScript WebSocket object.
  *
 **/
 (function(global) {
 
-	// *Always* connect to our own localhost-based proxy
+	// *Always* connect to our own localhost-based endpoint for _creating_ new Network Web Sockets
 	var endpointUrlBase = "ws://localhost:9009/";
 
 	function isValidServiceName(serviceName) {
-		return /^[A-Za-z0-9\._-]{1,255}$/.test(serviceName);
+		return /^[A-Za-z0-9\=\/\+\._-]{1,255}$/.test(serviceName);
 	}
 
 	function isJson(json) {
@@ -34,15 +29,8 @@
 	    return true;
 	}
 
-	function createServicePath(isNetwork, serviceName) {
-		var path = "";
-		if (isNetwork) {
-			path += "network/";
-		} else {
-			path += "local/";
-		}
-		path += serviceName;
-		return path + "/";
+	function createServicePath(serviceName) {
+		return "network/" + serviceName + "/";
 	}
 
 /**** START WEBSOCKET SHIM ****/
@@ -209,15 +197,14 @@
 
 /**** END WEBSOCKET SHIM ****/
 
-
-	var NamedWebSocket = function (serviceName, subprotocols, isNetwork) {
+	var NamedWebSocket = function (serviceName, subprotocols) {
 		if (!isValidServiceName(serviceName)) {
 			throw "Invalid Service Name: " + serviceName;
 		}
 
 		var peerId = Math.floor( Math.random() * 1e16);
 
-		var path = createServicePath(isNetwork, serviceName)
+		var path = createServicePath(serviceName)
 
 		var rootWebSocket = new WebSocket(endpointUrlBase + path + peerId, subprotocols);
 
@@ -310,21 +297,13 @@
 	};
 
 	var NetworkWebSocket = function (serviceName, subprotocols) {
-		return new NamedWebSocket(serviceName, subprotocols, true);
-	};
-
-	var LocalWebSocket = function (serviceName, subprotocols) {
-		return new NamedWebSocket(serviceName, subprotocols, false);
+		return new NamedWebSocket(serviceName, subprotocols);
 	};
 
 	// Expose global functions
 
 	if (!global.NetworkWebSocket) {
 		global.NetworkWebSocket = (global.module || {}).exports = NetworkWebSocket;
-	}
-
-	if (!global.LocalWebSocket) {
-		global.LocalWebSocket = (global.module || {}).exports = LocalWebSocket;
 	}
 
 })(this);

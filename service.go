@@ -24,15 +24,13 @@ var (
 
 	peerIdRegexStr = "[0-9]{4,}"
 
-	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isValidBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isNetworkServiceRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/(network|local)/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
-
-	isNetworkControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 
@@ -50,12 +48,11 @@ type NamedWebSocket_Service struct {
 
 	ProxyPort int
 
-	localSockets   *NamedWebSocket_Service_Group
 	networkSockets *NamedWebSocket_Service_Group
 }
 
 type NamedWebSocket_Service_Group struct {
-	// All Named WebSocket services (local or network) that this service manages
+	// All Named Web Socket services that this service manages
 	Services map[string]*NamedWebSocket
 
 	// Discovery related trackers for services advertised and registered
@@ -87,7 +84,6 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 
 		ProxyPort: 0,
 
-		localSockets:   NewNamedWebSocketServiceGroup(),
 		networkSockets: NewNamedWebSocketServiceGroup(),
 	}
 	return service
@@ -105,14 +101,14 @@ func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
 }
 
 func (service *NamedWebSocket_Service) Start() {
+	// Start HTTP/WebSocket endpoint server (blocking call)
+	go service.StartHTTPServer(true)
+
 	// Start TLS-SRP Named WebSocket (wss) server
 	go service.StartProxyServer()
 
 	// Start mDNS/DNS-SD discovery service (with 10 second network polling interval)
-	go service.StartDiscoveryServers(10)
-
-	// Start HTTP/WebSocket endpoint server (blocking call)
-	service.StartHTTPServer(false)
+	service.StartDiscoveryServer(10)
 }
 
 func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
@@ -122,8 +118,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 	// Serve the test console
 	serveMux.HandleFunc("/", service.serveConsoleTemplate)
 
-	// Serve websocket creation endpoints for localhost clients
-	serveMux.HandleFunc("/local/", service.serveLocalWSCreator)
+	// Serve websocket creation endpoint for localhost clients
 	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
 
 	// Serve websocket control endpoint for localhost clients
@@ -135,7 +130,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 		log.Fatal("Could not serve proxy. ", err)
 	}
 
-	log.Printf("Serving Named Web Socket Service at ws://localhost:%d/", service.Port)
+	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
 
 	if async {
 		go http.Serve(listener, serveMux)
@@ -149,7 +144,6 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	serveMux := http.NewServeMux()
 
 	// Serve secure websocket creation endpoints for network clients
-	serveMux.HandleFunc("/local/", service.serveProxyWSCreator)
 	serveMux.HandleFunc("/network/", service.serveProxyWSCreator)
 
 	// Generate random server salt for use in TLS-SRP data storage
@@ -180,25 +174,17 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 
 	service.ProxyPort, _ = strconv.Atoi(port)
 
-	log.Printf("Serving Named Web Socket Proxy at wss://%s:%d/", service.Host, service.ProxyPort)
+	log.Printf("Serving Named Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
 
 	http.Serve(tlsSrpListener, serveMux)
 }
 
-func (service *NamedWebSocket_Service) StartDiscoveryServers(timeoutSeconds int) {
-	networkDiscoveryServer := NewDiscoveryServer("network")
+func (service *NamedWebSocket_Service) StartDiscoveryServer(timeoutSeconds int) {
+	networkDiscoveryServer := NewDiscoveryServer()
 
 	defer networkDiscoveryServer.Shutdown()
 
-	go func() {
-		localDiscoveryServer := NewDiscoveryServer("local")
-
-		defer localDiscoveryServer.Shutdown()
-
-		for !localDiscoveryServer.closed {
-			localDiscoveryServer.Browse(service, timeoutSeconds)
-		}
-	}()
+	log.Printf("Listening for Named Web Socket services on the local network...")
 
 	for !networkDiscoveryServer.closed {
 		networkDiscoveryServer.Browse(service, timeoutSeconds)
@@ -270,9 +256,6 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 
 	isControl := isControlServiceRequest.MatchString(r.URL.Path)
 
-	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
-	isNetworkControl := isNetworkControlServiceRequest.MatchString(r.URL.Path)
-
 	pathParts := strings.Split(r.URL.Path, "/")
 
 	peerIdStr := pathParts[len(pathParts)-1]
@@ -291,17 +274,12 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
-	var group *NamedWebSocket_Service_Group
-	if isNetwork || isNetworkControl {
-		group = service.networkSockets
-	} else {
-		group = service.localSockets
-	}
+	group := service.networkSockets
 
-	// Resolve websocket connection (also, split Local and Network types with the same name)
+	// Resolve websocket connection
 	sock := group.Services[servicePath]
 	if sock == nil {
-		sock = NewNamedWebSocket(service, serviceName, service.Port, isNetwork, isControl)
+		sock = NewNamedWebSocket(service, serviceName, service.Port, isControl)
 		group.Services[servicePath] = sock
 	}
 
@@ -332,15 +310,7 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 		return
 	}
 
-	isNetwork := isNetworkServiceRequest.MatchString(r.URL.Path)
-
-	var group *NamedWebSocket_Service_Group
-
-	if !isNetwork {
-		group = service.localSockets
-	} else {
-		group = service.networkSockets
-	}
+	group := service.networkSockets
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
@@ -355,14 +325,6 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	for serviceName := range group.knownServiceNames {
 		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
-
-			if serviceScope == "local" {
-				// Only allow services to connect to *local* services access from localhost addresses
-				if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
-					http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
-					return
-				}
-			}
 
 			sock := group.Services[fmt.Sprintf("/%s/%s", serviceScope, serviceName)]
 			if sock == nil {
