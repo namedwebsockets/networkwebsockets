@@ -9,7 +9,7 @@ Network Web Sockets allow web pages, native applications and devices to create [
 * To create full-duplex, encrypted communications channels between network devices, native applications and web applications.
 * To create full-duplex, encrypted communication channels between web pages on different domains.
 * To import and export data between network devices, native applications and web applications.
-* To create initial local session signalling channels for establishing P2P sessions (for e.g. [WebRTC](#examples) bootstrapping).
+* To create initial local session signalling channels for establishing P2P sessions (for e.g. [WebRTC](#examples) signalling channel bootstrapping).
 * To establish low latency local network multiplayer signalling channels for games.
 * To enable collaborative editing, sharing and other forms of communication between different web pages and applications on a local device or a local network.
 
