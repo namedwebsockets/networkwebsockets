@@ -95,7 +95,75 @@ With both broadcast and direct messaging capabilities it is possible to build ad
 
 Devices and services running on the local machine can register Network Web Sockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Network Web Socket Proxy client also).
 
-To create a new Network Web Socket channel from anywhere on the local machine, simply create a new Web Socket connection to `ws://localhost:9009/network/<channelName>/<peer_id>`, where `channelName` is the name of the channel you want to create and use and `peer_id` is a new random integer to identify the new peer you are registering on this Network Web Socket. Network Web Socket peers will be advertised in the local network and all other Network Web Socket Proxies running in the network will be able to connect to your broadcasted network web socket interface.
+To create a new broadcast Network Web Socket connection to a channel from anywhere on the local machine you need to establish a new Web Socket connection to:
+
+```
+ws://localhost:9009/network/<channelName>/<peer_id>
+```
+
+where:
+
+* `channelName` is the name of the channel you want to create, and;
+* `peer_id` is a new random id to identify your new peer on the network.
+
+This websocket connection will act as a broadcast channel between you and all other matching channel peers (i.e. other Network Web Socket connections using the same `<channelName>`) across the local network.
+
+To be notified when peers connect and disconnect from this channel, and to send direct messages to other channel peers, you need to establish a 'control' Web Socket connection alongside the 'broadcast' Web Socket connection described above.
+
+You can listen for channel control messages by establishing a new Web Socket connection to:
+
+```
+ws://localhost:9009/control/network/<channelName>/<peer_id>
+```
+
+where:
+
+* `channelName` is the name of the channel you want to receive notifications for, and;
+* `peer_id` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
+
+Messages sent and received on this channel have a pre-defined message format.
+
+When a new channel peer connects to `<channelName>` on the network a new message is sent to this Web Socket connection as follows:
+
+```json
+{
+  Action: "connect", // a new channel peer has connected to <channelName>
+  Source: "<proxyId>", // the proxy connection to which this connected peer belongs
+  Target: "<peerId>" // the unique id of the new channel peer connection
+}
+```
+
+Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to this control connection as follows:
+
+```json
+{
+  Action: "disconnect", // an existing channel peer has disconnected from <channelName>
+  Source: "<proxyId>", // the proxy connection to which this disconnected peer belonged
+  Target: "<peerId>" // the unique id of the existing channel peer connection
+}
+```
+
+To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send a new message from this control connection as follows:
+
+```json
+{
+  Action: "message", // an existing channel peer has disconnected from <channelName>
+  // 'Source', if set, is ignored and will be set by the proxy to your channel peer's id
+  Target: "<recipient>" // the id of an existing channel peer you want to send a direct message to
+  Payload: "<data>" // the data you want to send to the target channel peer
+}
+```
+
+To receive a _direct message_ from another channel peer, bypassing the broadcast channel, a new message is sent to this control connection as follows:
+
+```json
+{
+  Action: "message", // an existing channel peer has disconnected from <channelName>
+  Source: "<sender>", // the id of the channel peer that sent you this direct message
+  Target: "<you>" // your channel peer's id
+  Payload: "<data>" // the data sent to you by <sourcePeerId>
+}
+```
 
 ### Examples
 
