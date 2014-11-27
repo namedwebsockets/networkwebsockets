@@ -23,7 +23,9 @@ This repository contains the proof-of-concept _Network Web Socket Proxy_, writte
 
 Once you have a Network Web Socket Proxy up and running on your local machine then you are ready to [create and share your own Network Web Sockets](#network-web-socket-interfaces). A number of [Network Web Socket client examples](#examples) are also provided to help get you started.
 
-##### [Go to downloads page to get a pre-built platform binary](https://github.com/namedwebsockets/networkwebsockets/releases)
+##### [Download a pre-built platform binary](https://github.com/namedwebsockets/networkwebsockets/releases)
+
+##### [How to build from source](https://github.com/namedwebsockets/networkwebsockets/wiki/Building-a-Network-Web-Socket-Proxy-from-Source)
 
 ### Network Web Socket Interfaces
 
