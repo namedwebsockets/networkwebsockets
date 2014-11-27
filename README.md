@@ -125,7 +125,7 @@ where:
 
 Messages sent and received on this channel have a pre-defined message format.
 
-When a new channel peer connects to `<channelName>` on the network a new message is sent to this Web Socket connection as follows:
+When a new channel peer connects to `<channelName>` on the network a new message is _sent_ to this Web Socket connection as follows:
 
 ```javascript
 {
@@ -135,7 +135,7 @@ When a new channel peer connects to `<channelName>` on the network a new message
 }
 ```
 
-Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to this control connection as follows:
+Similarly when a channel peer disconnects from `<channelName>` on the network a new message is _sent_ to this control connection as follows:
 
 ```javascript
 {
@@ -145,7 +145,7 @@ Similarly when a channel peer disconnects from `<channelName>` on the network a 
 }
 ```
 
-To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send a new message from this control connection as follows:
+To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can _send_ it over this control connection as follows:
 
 ```javascript
 {
@@ -156,7 +156,7 @@ To send a _direct message_ to another channel peer, bypassing the broadcast chan
 }
 ```
 
-To receive a _direct message_ from another channel peer, bypassing the broadcast channel, a new message is sent to this control connection as follows:
+To receive a _direct message_ from another channel peer, that has bypassed the broadcast channel, it is _sent_ to you over this control connection as follows:
 
 ```javascript
 {
