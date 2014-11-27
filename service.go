@@ -47,6 +47,8 @@ type NamedWebSocket_Service struct {
 	ProxyPort int
 
 	networkSockets *NamedWebSocket_Service_Group
+
+	down chan int // blocks until .Stop() is called on this service
 }
 
 type NamedWebSocket_Service_Group struct {
@@ -83,7 +85,10 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		ProxyPort: 0,
 
 		networkSockets: NewNamedWebSocketServiceGroup(),
+
+		down: make(chan int),
 	}
+
 	return service
 }
 
@@ -98,18 +103,20 @@ func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
 	}
 }
 
-func (service *NamedWebSocket_Service) Start() {
-	// Start HTTP/WebSocket endpoint server (blocking call)
-	go service.StartHTTPServer(true)
+func (service *NamedWebSocket_Service) Start() <-chan int {
+	// Start mDNS/DNS-SD Network Web Socket discovery service
+	go service.StartDiscoveryServer(10)
 
-	// Start TLS-SRP Named WebSocket (wss) server
+	// Start HTTP/Network Web Socket creation server
+	go service.StartHTTPServer()
+
+	// Start TLS-SRP Network Web Socket (wss) proxy server
 	go service.StartProxyServer()
 
-	// Start mDNS/DNS-SD discovery service (with 10 second network polling interval)
-	service.StartDiscoveryServer(10)
+	return service.DownNotify()
 }
 
-func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
+func (service *NamedWebSocket_Service) StartHTTPServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -130,11 +137,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer(async bool) {
 
 	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
 
-	if async {
-		go http.Serve(listener, serveMux)
-	} else {
-		http.Serve(listener, serveMux)
-	}
+	http.Serve(listener, serveMux)
 }
 
 func (service *NamedWebSocket_Service) StartProxyServer() {
@@ -339,6 +342,20 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 	http.Error(w, "Not Found", 404)
 	return
 }
+
+// Stop stops the server gracefully, and shuts down the running goroutine.
+// Stop should be called after a Start(s), otherwise it will block forever.
+func (service *NamedWebSocket_Service) Stop() {
+	service.down <- 1
+}
+
+// DownNotify returns a channel that receives a empty integer
+// when the server is stopped.
+func (service *NamedWebSocket_Service) DownNotify() <-chan int { return service.down }
+
+//
+// HELPER FUNCTIONS
+//
 
 func (service *NamedWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {
 	allowedLocalHosts := map[string]bool{
