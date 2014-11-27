@@ -37,18 +37,59 @@ The [Network Web Sockets JavaScript polyfill library](https://github.com/namedwe
 
 * `NetworkWebSocket` for creating/binding named websockets to share on the local network.
 
-You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming your [Network Web Sockets JavaScript polyfill](https://github.com/namedwebsockets/networkwebsockets/blob/master/lib/namedwebsockets.js) is located at `lib/namedwebsockets.js` then that can be done in an HTML document as follows:
+You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming we have added the [Network Web Sockets JavaScript polyfill](https://github.com/namedwebsockets/networkwebsockets/blob/master/lib/namedwebsockets.js) to our page then we can create a new `NetworkWebSocket` connection object via the JavaScript polyfill as follows:
 
-    <script src="lib/namedwebsockets.js"></script>
+```javascript
+  // Create a new Network Web Socket peer in the network
+  var networkWS = new NetworkWebSocket("myChannelName");
+```
 
-You can create a new `NetworkWebSocket` connection object via the JavaScript polyfill as follows:
+We then wait for our peer to be successfully added to the network:
 
-    var networkWS = new NetworkWebSocket("myChannelName");
-    // Now do something with `networkWS` (it is a WebSocket object so use accordingly)
+```javascript
+  ws.onopen = function() {
+    console.log('Our channel peer is now connected to the `myChannelName` web socket network!');
+  };
+```
 
-When any other client connects to a network web socket endpoint named `myChannelName` then your web socket connections will be automatically linked with each other in a broadcast confiuration.
+We can then send a _broadcast_ message to all known channel peers in the network as follows:
 
-You now have a full-duplex Web Socket channel to use for communication between each peer connected to the same channel name!
+```javascript
+  ws.send('This is a broadcast message to *all* other channel peers');
+```
+
+When we create a network web socket connection the Network Web Socket proxy starts to discover and connect to all other `myChannelName` channel peers being advertised in the local network.
+
+Each time a new channel peer is discovered and a connection to that peer is established, a new `connect` event will be fired on our object:
+
+```javascript
+  ws.onconnect = function(event) {
+    console.log('Another peer has been discovered and connected to our `myChannelName` web socket network!');
+  };
+```
+
+In this `connect` event, we are provided with a peer-to-peer Web Socket connection object to communicate directly with this newly discovered and connected peer.
+
+We can send a _direct message_ to a channel peer (bypassing the broadcast network) as follows:
+
+```javascript
+  // Wait for a new channel peer to connect to our `myChannelName` web socket network
+  ws.onconnect = function(event) {
+
+    // Retrieve the new direct P2P Web Socket connection object with the newly connected channel peer
+    var peerWS = evt.detail.target;
+
+    // Wait for this new direct p2p channel connection to be opened
+    peerWS.onopen = function() {
+
+      // Send a direct message bypassing the broadcast network
+      peerWS.send('This is a direct message to the new channel peer *only*'):
+
+    };
+  };
+```
+
+With both broadcast and direct messaging capabilities it is possible to build advanced services on top of Network Web Sockets. We are excited to see what you come up with!
 
 #### Web Socket Interfaces
 
