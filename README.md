@@ -123,7 +123,7 @@ where:
 * `channelName` is the name of the channel you want to receive notifications for, and;
 * `peerId` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
 
-Messages sent and received on this channel have a pre-defined message format.
+Messages sent and received on a control channel have a well-defined message format.
 
 When a new channel peer connects to `<channelName>` on the network a new message is _sent_ to this Web Socket connection as follows:
 
