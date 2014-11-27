@@ -11,8 +11,6 @@ A basic [publish/subscribe](https://en.wikipedia.org/wiki/Publish–subscribe_pa
 
 2. Open [`pubsub.html`](http://namedwebsockets.github.io/namedwebsockets/examples/pubsub/pubsub.html) on your local machine.
 
-3. Open [`pubsub.html`](http://namedwebsockets.github.io/namedwebsockets/examples/pubsub/pubsub.html) in another browser window *on your local machine* (in the same browser or in a different browser).
-
-    NOTE: This service has been limiting our service to operate on the local machine only due to using a `LocalWebSocket` connection.
+3. Open [`pubsub.html`](http://namedwebsockets.github.io/namedwebsockets/examples/pubsub/pubsub.html) in another browser window on the local machine or on another device that is also running a Named WebSockets proxy in the local network.
 
 4. Log in and out on one window using the interface provided and watch the authorization state get applied to the other window (and vice-versa).

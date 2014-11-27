@@ -18,13 +18,6 @@ const (
 	network_ipv4mdns = "224.0.0.251"
 	network_ipv6mdns = "ff02::fb"
 	network_mdnsPort = 5353
-
-	/*local_ipv4mdns = "127.0.0.1"
-	local_ipv6mdns = "::1"
-	local_mdnsPort = 5352*/
-	local_ipv4mdns = "239.0.0.251"
-	local_ipv6mdns = "ff01::e:1"
-	local_mdnsPort = 5352
 )
 
 var (
@@ -36,30 +29,22 @@ var (
 		IP:   net.ParseIP(network_ipv6mdns),
 		Port: network_mdnsPort,
 	}
-	local_ipv4Addr = &net.UDPAddr{
-		IP:   net.ParseIP(local_ipv4mdns),
-		Port: local_mdnsPort,
-	}
-	local_ipv6Addr = &net.UDPAddr{
-		IP:   net.ParseIP(local_ipv6mdns),
-		Port: local_mdnsPort,
-	}
 )
 
 /** Named Web Socket DNS-SD Discovery Client interface **/
 
 type DiscoveryClient struct {
+	ServiceName string
 	ServiceHash string
-	Scope       string
 	Port        int
 	Path        string
 	server      *mdns.Server
 }
 
-func NewDiscoveryClient(serviceHash string, port int, path, scope string) *DiscoveryClient {
+func NewDiscoveryClient(serviceName, serviceHash string, port int, path string) *DiscoveryClient {
 	discoveryClient := &DiscoveryClient{
+		ServiceName: serviceName,
 		ServiceHash: serviceHash,
-		Scope:       scope,
 		Port:        port,
 		Path:        path,
 	}
@@ -86,16 +71,9 @@ func (dc *DiscoveryClient) Register(domain string) {
 	var mdnsClientConfig *mdns.Config
 
 	// Advertise service to the correct endpoint (local or network)
-	if dc.Scope == "network" {
-		mdnsClientConfig = &mdns.Config{
-			IPv4Addr: network_ipv4Addr,
-			IPv6Addr: network_ipv6Addr,
-		}
-	} else {
-		mdnsClientConfig = &mdns.Config{
-			IPv4Addr: local_ipv4Addr,
-			IPv6Addr: local_ipv6Addr,
-		}
+	mdnsClientConfig = &mdns.Config{
+		IPv4Addr: network_ipv4Addr,
+		IPv6Addr: network_ipv6Addr,
 	}
 
 	// Add the DNS zone record to advertise
@@ -109,7 +87,7 @@ func (dc *DiscoveryClient) Register(domain string) {
 
 	dc.server = serv
 
-	log.Printf("New %s websocket advertised as '%s' in %s network", dc.Scope, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
+	log.Printf("New '%s' channel peer advertised as '%s' in %s network", dc.ServiceName, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
 func (dc *DiscoveryClient) Shutdown() {
@@ -121,14 +99,11 @@ func (dc *DiscoveryClient) Shutdown() {
 /** Named Web Socket DNS-SD Discovery Server interface **/
 
 type DiscoveryServer struct {
-	Scope  string
 	closed bool
 }
 
-func NewDiscoveryServer(scope string) *DiscoveryServer {
-	discoveryServer := &DiscoveryServer{
-		Scope: scope,
-	}
+func NewDiscoveryServer() *DiscoveryServer {
+	discoveryServer := &DiscoveryServer{}
 
 	return discoveryServer
 }
@@ -145,17 +120,10 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 	var targetIPv6 *net.UDPAddr
 	var group *NamedWebSocket_Service_Group
 
-	if ds.Scope == "local" {
-		targetIPv4 = local_ipv4Addr
-		targetIPv6 = local_ipv6Addr
+	targetIPv4 = network_ipv4Addr
+	targetIPv6 = network_ipv6Addr
 
-		group = service.localSockets
-	} else {
-		targetIPv4 = network_ipv4Addr
-		targetIPv6 = network_ipv6Addr
-
-		group = service.networkSockets
-	}
+	group = service.networkSockets
 
 	// Only look for Named Web Socket DNS-SD services
 	params := &mdns.QueryParam{
@@ -204,7 +172,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				for knownServiceName := range group.knownServiceNames {
 					if bcrypt.Match(knownServiceName, serviceRecord.Hash_BCrypt) {
 						serviceName = knownServiceName
-						localServicePath = fmt.Sprintf("/%s/%s", ds.Scope, knownServiceName)
+						localServicePath = fmt.Sprintf("/network/%s", knownServiceName)
 						isKnown = true
 						break
 					}
@@ -219,13 +187,7 @@ func (ds *DiscoveryServer) Browse(service *NamedWebSocket_Service, timeoutSecond
 				// Resolve websocket connection
 				sock := group.Services[localServicePath]
 				if sock == nil {
-
-					isNetwork := true
-					if ds.Scope == "local" {
-						isNetwork = false
-					}
-
-					sock = NewNamedWebSocket(service, serviceName, service.Port, isNetwork, false)
+					sock = NewNamedWebSocket(service, serviceName, service.Port, false)
 					group.Services[localServicePath] = sock
 				}
 
