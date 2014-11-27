@@ -152,7 +152,7 @@ To send a _direct message_ to another channel peer, bypassing the broadcast chan
   Action: "message", // an existing channel peer has disconnected from <channelName>
   // 'Source', if set, is ignored and will be set by the proxy to your channel peer's id
   Target: "<recipient>" // the id of an existing channel peer you want to send a direct message to
-  Payload: "<data>" // the data you want to send to the target channel peer
+  Payload: "<data>" // the data you want to send to <recipient>
 }
 ```
 
@@ -163,7 +163,7 @@ To receive a _direct message_ from another channel peer, that has bypassed the b
   Action: "message", // an existing channel peer has disconnected from <channelName>
   Source: "<sender>", // the id of the channel peer that sent you this direct message
   Target: "<you>" // your channel peer's id
-  Payload: "<data>" // the data sent to you by <sourcePeerId>
+  Payload: "<data>" // the data sent to you by <sender>
 }
 ```
 
