@@ -95,14 +95,15 @@ With both broadcast and direct messaging capabilities it is possible to build ad
 
 Devices and services running on the local machine can register Network Web Sockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Network Web Socket Proxy client also).
 
-To create a new broadcast Network Web Socket connection to a channel from anywhere on the local machine you need to establish a new Web Socket connection to:
+To create a new _broadcast_ Network Web Socket connection to a channel from anywhere on the local machine you can establish a new Web Socket connection to:
 
 ```
-ws://localhost:9009/network/<channelName>/<peer_id>
+ws://localhost:<port>/network/<channelName>/<peer_id>
 ```
 
 where:
 
+* `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
 * `channelName` is the name of the channel you want to create, and;
 * `peer_id` is a new random id to identify your new peer on the network.
 
@@ -110,14 +111,15 @@ This websocket connection will act as a broadcast channel between you and all ot
 
 To be notified when peers connect and disconnect from this channel, and to send direct messages to other channel peers, you need to establish a 'control' Web Socket connection alongside the 'broadcast' Web Socket connection described above.
 
-You can listen for channel control messages by establishing a new Web Socket connection to:
+You can listen for channel _control_ messages by establishing a new Web Socket connection to:
 
 ```
-ws://localhost:9009/control/network/<channelName>/<peer_id>
+ws://localhost:<port>/control/network/<channelName>/<peer_id>
 ```
 
 where:
 
+* `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
 * `channelName` is the name of the channel you want to receive notifications for, and;
 * `peer_id` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
 
