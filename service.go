@@ -26,11 +26,9 @@ var (
 
 	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isValidBroadcastRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidControlRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isNetworkServiceRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
-
-	isControlServiceRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidProxyRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 
@@ -254,7 +252,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
-	isControl := isControlServiceRequest.MatchString(r.URL.Path)
+	isControl := isValidControlRequest.MatchString(r.URL.Path)
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
@@ -300,7 +298,7 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 		return
 	}
 
-	if isValidRequest := isValidBroadcastRequest.MatchString(r.URL.Path); !isValidRequest {
+	if isValidRequest := isValidProxyRequest.MatchString(r.URL.Path); !isValidRequest {
 		http.Error(w, "Not Found", 404)
 		return
 	}
