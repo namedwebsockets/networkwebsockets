@@ -41,26 +41,26 @@ You must include the polyfill file in your own projects to create these JavaScri
 
 ```javascript
   // Create a new Network Web Socket peer in the network
-  var networkWS = new NetworkWebSocket("myChannelName");
+  var ws = new NetworkWebSocket("myChannelName");
 ```
 
 We then wait for our peer to be successfully added to the network:
 
 ```javascript
   ws.onopen = function() {
-    console.log('Our channel peer is now connected to the `myChannelName` web socket network!');
+    console.log('Our channel peer is now connected to the `myChannelName` web socket network');
   };
 ```
 
-We can then send a _broadcast_ message to all known channel peers in the network as follows:
+We can then send a _broadcast_ message to all the other _currently known_ channel peers in the network as follows:
 
 ```javascript
   ws.send('This is a broadcast message to *all* other channel peers');
 ```
 
-When we create a network web socket connection the Network Web Socket proxy starts to discover and connect to all other `myChannelName` channel peers being advertised in the local network.
+When we create a network web socket connection the Network Web Socket proxy starts to discover and connect to all other `myChannelName` channel peers that are being advertised in the local network.
 
-Each time a new channel peer is discovered and a connection to that peer is established, a new `connect` event will be fired on our object:
+Each time a new channel peer is discovered in the network a Web Socket proxy connection to that peer is established and a new `connect` event is be fired against our Network Web Socket object:
 
 ```javascript
   ws.onconnect = function(event) {
@@ -68,9 +68,9 @@ Each time a new channel peer is discovered and a connection to that peer is esta
   };
 ```
 
-In this `connect` event, we are provided with a peer-to-peer Web Socket connection object to communicate directly with this newly discovered and connected peer.
+In this `connect` event, we are provided with a direct, _peer-to-peer_ Web Socket connection object that can be used to communicate directly with this newly discovered and connected peer.
 
-We can send a _direct message_ to a channel peer (bypassing the broadcast network) as follows:
+We can send a _direct message_ to a channel peer, bypassing the broadcast network, as follows:
 
 ```javascript
   // Wait for a new channel peer to connect to our `myChannelName` web socket network
