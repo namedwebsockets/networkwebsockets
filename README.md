@@ -19,9 +19,9 @@ You can read more about the network-level security used by Network Web Sockets o
 
 ### Getting started
 
-This repository contains the proof-of-concept _Network Web Sockets Proxy_, written in Go, currently required to experiment with and use Network Web Sockets. You can either [download a pre-built Network Web Sockets binary](https://github.com/namedwebsockets/networkwebsockets/releases) or [build the Network Web Sockets Proxy from source](https://github.com/namedwebsockets/networkwebsockets/wiki/Building-a-Named-Web-Sockets-Proxy-from-Source) to get up and running.
+This repository contains the proof-of-concept _Network Web Socket Proxy_, written in Go, currently required to experiment with and use Network Web Sockets. You can either [download a pre-built Network Web Sockets binary](https://github.com/namedwebsockets/networkwebsockets/releases) or [build a Network Web Socket Proxy from source](https://github.com/namedwebsockets/networkwebsockets/wiki/Building-a-Network-Web-Socket-Proxy-from-Source) to get up and running.
 
-Once you have a Network Web Sockets Proxy up and running on your local machine then you are ready to [create and share your own Network Web Sockets](#network-web-socket-interfaces). A number of [Network Web Socket client examples](#examples) are also provided to help get you started.
+Once you have a Network Web Socket Proxy up and running on your local machine then you are ready to [create and share your own Network Web Sockets](#network-web-socket-interfaces). A number of [Network Web Socket client examples](#examples) are also provided to help get you started.
 
 ##### [Go to downloads page to get a pre-built platform binary](https://github.com/namedwebsockets/networkwebsockets/releases)
 
@@ -29,7 +29,7 @@ Once you have a Network Web Sockets Proxy up and running on your local machine t
 
 #### Local HTTP Test Console
 
-Once a Network Web Sockets Proxy is up and running, you can access a test console and play around with _Network Web Sockets_ at `http://localhost:9009/console`.
+Once a Network Web Socket Proxy is up and running, you can access a test console and play around with _Network Web Sockets_ at `http://localhost:9009/console`.
 
 #### JavaScript Interfaces
 
@@ -93,7 +93,7 @@ With both broadcast and direct messaging capabilities it is possible to build ad
 
 #### Web Socket Interfaces
 
-Devices and services running on the local machine can register Network Web Sockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Network Web Sockets proxy client also).
+Devices and services running on the local machine can register Network Web Sockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Network Web Socket Proxy client also).
 
 To create a new Network Web Socket channel from anywhere on the local machine, simply create a new Web Socket connection to `ws://localhost:9009/network/<channelName>/<peer_id>`, where `channelName` is the name of the channel you want to create and use and `peer_id` is a new random integer to identify the new peer you are registering on this Network Web Socket. Network Web Socket peers will be advertised in the local network and all other Network Web Socket Proxies running in the network will be able to connect to your broadcasted network web socket interface.
 
