@@ -40,22 +40,22 @@ The [Network Web Sockets JavaScript polyfill library](https://github.com/namedwe
 You must include the polyfill file in your own projects to create these JavaScript interfaces. Assuming we have added the [Network Web Sockets JavaScript polyfill](https://github.com/namedwebsockets/networkwebsockets/blob/master/lib/namedwebsockets.js) to our page then we can create a new `NetworkWebSocket` connection object via the JavaScript polyfill as follows:
 
 ```javascript
-  // Create a new Network Web Socket peer in the network
-  var ws = new NetworkWebSocket("myChannelName");
+// Create a new Network Web Socket peer in the network
+var ws = new NetworkWebSocket("myChannelName");
 ```
 
 We then wait for our peer to be successfully added to the network:
 
 ```javascript
-  ws.onopen = function() {
-    console.log('Our channel peer is now connected to the `myChannelName` web socket network');
-  };
+ws.onopen = function() {
+  console.log('Our channel peer is now connected to the `myChannelName` web socket network');
+};
 ```
 
 We can then send a _broadcast_ message to all the other _currently known_ channel peers in the network as follows:
 
 ```javascript
-  ws.send('This is a broadcast message to *all* other channel peers');
+ws.send('This is a broadcast message to *all* other channel peers');
 ```
 
 When we create a Network Web Socket connection object then the Network Web Socket Proxy will start to discover and connect to all other `myChannelName` channel peers that are being advertised in the local network.
@@ -63,9 +63,9 @@ When we create a Network Web Socket connection object then the Network Web Socke
 Each time a new channel peer is discovered in the network a Web Socket proxy connection to that peer is established and a new `connect` event is queued and fired against our root Network Web Socket object:
 
 ```javascript
-  ws.onconnect = function(event) {
-    console.log('Another peer has been discovered and connected to our `myChannelName` web socket network!');
-  };
+ws.onconnect = function(event) {
+  console.log('Another peer has been discovered and connected to our `myChannelName` web socket network!');
+};
 ```
 
 In this `connect` event, we are provided with a direct, _peer-to-peer_ Web Socket connection object that can be used to communicate directly with this newly discovered and connected peer.
@@ -73,20 +73,20 @@ In this `connect` event, we are provided with a direct, _peer-to-peer_ Web Socke
 We can send a _direct message_ to a channel peer, bypassing the broadcast network, as follows:
 
 ```javascript
-  // Wait for a new channel peer to connect to our `myChannelName` web socket network
-  ws.onconnect = function(event) {
+// Wait for a new channel peer to connect to our `myChannelName` web socket network
+ws.onconnect = function(event) {
 
-    // Retrieve the new direct P2P Web Socket connection object with the newly connected channel peer
-    var peerWS = evt.detail.target;
+  // Retrieve the new direct P2P Web Socket connection object with the newly connected channel peer
+  var peerWS = evt.detail.target;
 
-    // Wait for this new direct p2p channel connection to be opened
-    peerWS.onopen = function() {
+  // Wait for this new direct p2p channel connection to be opened
+  peerWS.onopen = function() {
 
-      // Send a direct message bypassing the broadcast network
-      peerWS.send('This is a direct message to the new channel peer *only*'):
+    // Send a direct message bypassing the broadcast network
+    peerWS.send('This is a direct message to the new channel peer *only*'):
 
-    };
   };
+};
 ```
 
 With both broadcast and direct messaging capabilities it is possible to build advanced services on top of Network Web Sockets. We are excited to see what you come up with!
@@ -125,27 +125,27 @@ Messages sent and received on this channel have a pre-defined message format.
 
 When a new channel peer connects to `<channelName>` on the network a new message is sent to this Web Socket connection as follows:
 
-```json
+```javascript
 {
   Action: "connect", // a new channel peer has connected to <channelName>
   Source: "<proxyId>", // the proxy connection to which this connected peer belongs
-  Target: "<peerId>" // the unique id of the new channel peer connection
+  Target: "<newPeerId>" // the unique id of the new channel peer connection
 }
 ```
 
 Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to this control connection as follows:
 
-```json
+```javascript
 {
   Action: "disconnect", // an existing channel peer has disconnected from <channelName>
   Source: "<proxyId>", // the proxy connection to which this disconnected peer belonged
-  Target: "<peerId>" // the unique id of the existing channel peer connection
+  Target: "<existingPeerId>" // the unique id of the existing channel peer connection
 }
 ```
 
 To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send a new message from this control connection as follows:
 
-```json
+```javascript
 {
   Action: "message", // an existing channel peer has disconnected from <channelName>
   // 'Source', if set, is ignored and will be set by the proxy to your channel peer's id
@@ -156,7 +156,7 @@ To send a _direct message_ to another channel peer, bypassing the broadcast chan
 
 To receive a _direct message_ from another channel peer, bypassing the broadcast channel, a new message is sent to this control connection as follows:
 
-```json
+```javascript
 {
   Action: "message", // an existing channel peer has disconnected from <channelName>
   Source: "<sender>", // the id of the channel peer that sent you this direct message
