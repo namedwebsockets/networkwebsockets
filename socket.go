@@ -1,4 +1,4 @@
-package namedwebsockets
+package networkwebsockets
 
 import (
 	"encoding/base64"
