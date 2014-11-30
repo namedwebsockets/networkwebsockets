@@ -78,9 +78,8 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 		}
 
 		var message ProxyWireMessage
-		err = json.Unmarshal(buf, &message)
-		if err != nil {
-			continue
+		if err = json.Unmarshal(buf, &message); err != nil {
+			continue // ignore unrecognized message format
 		}
 
 		switch message.Action {

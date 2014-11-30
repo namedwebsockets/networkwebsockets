@@ -66,7 +66,8 @@ func (dc *DiscoveryService) Register(domain string) {
 	}
 
 	if err := s.Init(); err != nil {
-		log.Fatalf("err: %v", err)
+		log.Printf("Could not register service on network. %v", err)
+		return
 	}
 
 	var mdnsClientConfig *mdns.Config
@@ -83,7 +84,7 @@ func (dc *DiscoveryService) Register(domain string) {
 	serv, err := mdns.NewServer(mdnsClientConfig)
 
 	if err != nil {
-		log.Fatalf("err: %v", err)
+		log.Printf("Failed to create new mDNS server. %v", err)
 	}
 
 	dc.server = serv
@@ -215,7 +216,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 	err := mdns.Query(params)
 
 	if err != nil {
-		log.Fatalf("err: %v", err)
+		log.Printf("Could not perform mDNS/DNS-SD query. %v", err)
 	}
 }
 

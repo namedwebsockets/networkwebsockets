@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 	"text/template"
+	"time"
 
 	tls "github.com/richtr/go-tls-srp"
 )
@@ -135,7 +135,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	// Listen and on loopback address + port
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
 	if err != nil {
-		log.Fatal("Could not serve proxy. ", err)
+		log.Fatal("Could not serve web server. ", err)
 	}
 
 	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
@@ -167,13 +167,13 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	// Listen on all addresses + port
 	tlsSrpListener, err := tls.Listen("tcp", ":0", tlsServerConfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not serve proxy server. ", err)
 	}
 
 	// Obtain and store the port of the proxy endpoint
 	_, port, err := net.SplitHostPort(tlsSrpListener.Addr().String())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not determine bound port of proxy server. ", err)
 	}
 
 	service.ProxyPort, _ = strconv.Atoi(port)

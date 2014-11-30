@@ -3,7 +3,6 @@ package networkwebsockets
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/richtr/websocket"
@@ -71,8 +70,7 @@ func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
 
 		var message ControlWireMessage
 		if err := json.Unmarshal(buf, &message); err != nil {
-			log.Fatalf("%s", err)
-			continue
+			continue // ignore unrecognized message format
 		}
 
 		switch message.Action {
