@@ -21,7 +21,9 @@ You can read more about the secure discovery process and proxy-to-proxy encrypti
 
 ### Getting started
 
-This repository contains the proof-of-concept _Network Web Socket Proxy_, written in Go, currently required to experiment with and use Network Web Sockets. You can either [download a pre-built Network Web Sockets binary](https://github.com/namedwebsockets/networkwebsockets/releases) or [build a Network Web Socket Proxy from source](https://github.com/namedwebsockets/networkwebsockets/wiki/Building-a-Network-Web-Socket-Proxy-from-Source) to get up and running.
+This repository contains an implementation of a _Network Web Socket Proxy_, written in Go, required to use Network Web Sockets.
+
+You can either [download a pre-built Network Web Sockets binary](https://github.com/namedwebsockets/networkwebsockets/releases) or [build a Network Web Socket Proxy from source](https://github.com/namedwebsockets/networkwebsockets/wiki/Building-a-Network-Web-Socket-Proxy-from-Source) to get up and running.
 
 Once you have a Network Web Socket Proxy up and running on your local machine then you are ready to [create and share your own Network Web Sockets](#network-web-socket-interfaces). A number of [Network Web Socket client examples](#examples) are also provided to help get you started.
 
