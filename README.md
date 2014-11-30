@@ -58,7 +58,7 @@ We can listen for incoming _broadcast_ messages from channel peers in the networ
 
 ```javascript
 ws.onmessage = function(event) {
-  console.log("Received message: " + event.data);
+  console.log("Broadcast message received: " + event.data);
 };
 ```
 
@@ -80,7 +80,7 @@ ws.onconnect = function(event) {
 
 In this `connect` event, we are provided with a direct, _peer-to-peer_ Web Socket connection object that can be used to communicate directly with this newly discovered and connected peer.
 
-We can send a _direct message_ to a channel peer, bypassing the broadcast network, as follows:
+We can send a _direct message_ to a channel peer and listen for _direct messages_ from this channel peer as follows:
 
 ```javascript
 // Wait for a new channel peer to connect to our `myChannelName` web socket network
@@ -92,7 +92,12 @@ ws.onconnect = function(event) {
   // Wait for this new direct p2p channel connection to be opened
   peerWS.onopen = function() {
 
-    // Send a direct message bypassing the broadcast network
+    // Listen for direct messages from this peer
+    peerWS.onmessage = function(event) {
+      console.log("Direct message received from [" + event.source + "]: " + event.data);
+    }
+
+    // Send a direct message to this peer
     peerWS.send('This is a direct message to the new channel peer *only*'):
 
   };
