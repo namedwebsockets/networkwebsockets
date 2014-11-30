@@ -63,12 +63,12 @@ var upgrader = websocket.Upgrader{
 func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isControl bool) *NamedWebSocket {
 	group := service.networkSockets
 
-	serviceHash_Base64, _ := bcrypt.HashBytes([]byte(serviceName))
-	serviceHash_BCrypt := base64.StdEncoding.EncodeToString(serviceHash_Base64)
+	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
+	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
 	sock := &NamedWebSocket{
 		serviceName:     serviceName,
-		serviceHash:     serviceHash_BCrypt,
+		serviceHash:     serviceHash_Base64,
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
@@ -102,10 +102,10 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 				}
 
 				// Add to resolved entries
-				group.ResolvedServiceRecords[record.Hash_BCrypt] = record
+				group.ResolvedServiceRecords[record.Hash_Base64] = record
 			} else {
 				// Maintain as an unresolved entry
-				unresolvedServiceRecords[record.Hash_BCrypt] = record
+				unresolvedServiceRecords[record.Hash_Base64] = record
 			}
 
 		}

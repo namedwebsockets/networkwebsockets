@@ -87,7 +87,7 @@ func (dc *DiscoveryService) Register(domain string) {
 
 	dc.server = serv
 
-	log.Printf("New '%s' channel peer advertised as '%s' in %s network", dc.ServiceName, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
+	log.Printf("New '%s' channel advertised as '%s' in %s network", dc.ServiceName, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
 func (dc *DiscoveryService) Shutdown() {
@@ -160,7 +160,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 				}
 
 				// Ignore previously discovered NetworkWebSocket services
-				if isResolved := group.ResolvedServiceRecords[serviceRecord.Hash_BCrypt]; isResolved != nil {
+				if isResolved := group.ResolvedServiceRecords[serviceRecord.Hash_Base64]; isResolved != nil {
 					continue
 				}
 
@@ -180,7 +180,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 
 				if !isKnown {
 					// Store as an unresolved DNS record
-					unresolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
+					unresolvedServiceRecords[serviceRecord.Hash_Base64] = serviceRecord
 					continue
 				}
 
@@ -198,7 +198,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 				}
 
 				// Set DNS record as resolved
-				group.ResolvedServiceRecords[serviceRecord.Hash_BCrypt] = serviceRecord
+				group.ResolvedServiceRecords[serviceRecord.Hash_Base64] = serviceRecord
 
 			case <-finish:
 				complete = true
