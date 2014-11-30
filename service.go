@@ -22,7 +22,7 @@ var (
 
 	serviceNameRegexStr = "[A-Za-z0-9/\\+=\\*\\._-]{1,255}"
 
-	peerIdRegexStr = "[0-9]{4,}"
+	peerIdRegexStr = "[A-Za-z0-9]{4,}"
 
 	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
@@ -261,7 +261,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
-	peerIdStr := pathParts[len(pathParts)-1]
+	peerId := pathParts[len(pathParts)-1]
 	serviceName := pathParts[len(pathParts)-2]
 
 	// Remove trailing peerId from service path
@@ -285,8 +285,6 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		sock = NewNamedWebSocket(service, serviceName, service.Port, isControl)
 		group.Services[servicePath] = sock
 	}
-
-	peerId, _ := strconv.Atoi(peerIdStr)
 
 	// Handle websocket connection
 	if isControl {
@@ -317,7 +315,7 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	pathParts := strings.Split(r.URL.Path, "/")
 
-	peerIdStr := pathParts[len(pathParts)-1]
+	peerId := pathParts[len(pathParts)-1]
 	serviceHash := pathParts[len(pathParts)-2]
 
 	serviceScope := pathParts[len(pathParts)-3]
@@ -335,7 +333,6 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 				continue
 			}
 
-			peerId, _ := strconv.Atoi(peerIdStr)
 			sock.serveProxy(w, r, peerId)
 			return
 		}

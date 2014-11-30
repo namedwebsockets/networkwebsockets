@@ -13,7 +13,7 @@ type ProxyConnection struct {
 	PeerConnection
 
 	// List of connection ids that this proxy connection 'owns'
-	peers map[int]bool
+	peers map[string]bool
 
 	// Whether this proxy connection is writeable
 	writeable bool
@@ -23,30 +23,30 @@ type ProxyWireMessage struct {
 	// Proxy message type: "connect", "disconnect", "message", "directmessage"
 	Action string
 
-	Source int
+	Source string
 
 	// Recipients' id list (0 === send to all peers)
-	Target int
+	Target string
 
 	// Raw message contents
 	Payload string
 }
 
-func NewProxyConnection(id int, socket *websocket.Conn, isWriteable bool) *ProxyConnection {
+func NewProxyConnection(id string, socket *websocket.Conn, isWriteable bool) *ProxyConnection {
 	proxyConn := &ProxyConnection{
 		PeerConnection: PeerConnection{
 			id: id,
 			ws: socket,
 		},
 		writeable: isWriteable,
-		peers:     make(map[int]bool),
+		peers:     make(map[string]bool),
 	}
 
 	return proxyConn
 }
 
 // Send a message to the target websocket connection
-func (proxy *ProxyConnection) send(action string, source int, target int, payload string) {
+func (proxy *ProxyConnection) send(action string, source string, target string, payload string) {
 	// Construct proxy wire message
 	m := ProxyWireMessage{
 		Action:  action,
@@ -108,7 +108,7 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 			// broadcast message on to given target
 			wsBroadcast := &Message{
 				source:    message.Source,
-				target:    0, // target all connections
+				target:    "", // target all connections
 				payload:   message.Payload,
 				fromProxy: true,
 			}

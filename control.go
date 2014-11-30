@@ -18,15 +18,15 @@ type ControlWireMessage struct {
 	// Proxy message type: "connect", "disconnect", "message"
 	Action string
 
-	Source int
+	Source string
 
-	Target int
+	Target string
 
 	// Message contents
 	Payload string
 }
 
-func NewControlConnection(id int, socket *websocket.Conn) *ControlConnection {
+func NewControlConnection(id string, socket *websocket.Conn) *ControlConnection {
 	controlConn := &ControlConnection{
 		PeerConnection: PeerConnection{
 			id: id,
@@ -38,7 +38,7 @@ func NewControlConnection(id int, socket *websocket.Conn) *ControlConnection {
 }
 
 // Send a message to the target websocket connection
-func (control *ControlConnection) send(action string, source int, target int, payload string) {
+func (control *ControlConnection) send(action string, source string, target string, payload string) {
 	// Construct proxy wire message
 	m := ControlWireMessage{
 		Action:  action,

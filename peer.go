@@ -8,7 +8,7 @@ import (
 
 type PeerConnection struct {
 	// Unique identifier for this peer connection
-	id int
+	id string
 
 	// WebSocket connection object
 	ws *websocket.Conn
@@ -16,10 +16,10 @@ type PeerConnection struct {
 
 type Message struct {
 	// The source peer connection of the message
-	source int
+	source string
 
 	// The destination peer connection id target
-	target int
+	target string
 
 	// The message payload
 	payload string
@@ -28,7 +28,7 @@ type Message struct {
 	fromProxy bool
 }
 
-func NewPeerConnection(id int, socket *websocket.Conn) *PeerConnection {
+func NewPeerConnection(id string, socket *websocket.Conn) *PeerConnection {
 	peerConn := &PeerConnection{
 		id: id,
 		ws: socket,
@@ -59,7 +59,7 @@ func (peer *PeerConnection) readConnectionPump(sock *NamedWebSocket) {
 
 		wsBroadcast := &Message{
 			source:    peer.id,
-			target:    0, // target all connections
+			target:    "", // target all connections
 			payload:   string(message),
 			fromProxy: false,
 		}

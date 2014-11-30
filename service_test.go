@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,13 +21,13 @@ type WSClient struct {
 }
 
 // Make a new WebSocket client connection
-func makeClient(t *testing.T, host, path string, peerId int) *WSClient {
-	if peerId == 0 {
+func makeClient(t *testing.T, host, path string, peerId string) *WSClient {
+	if peerId == "" {
 		// Generate unique id for connection
 		rand.Seed(time.Now().UTC().UnixNano())
-		peerId = rand.Int()
+		peerId = strconv.Itoa(rand.Int())
 	}
-	url := fmt.Sprintf("ws://%s%s/%d", host, path, peerId)
+	url := fmt.Sprintf("ws://%s%s/%s", host, path, peerId)
 	ws, _, err := websocket.DefaultDialer.Dial(url, map[string][]string{
 		"Origin": []string{"localhost"},
 	})

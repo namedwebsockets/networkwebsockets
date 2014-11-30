@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +127,7 @@ func (sock *NamedWebSocket) advertise(port int) {
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id int) {
+func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -143,7 +144,7 @@ func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id int) {
+func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -166,7 +167,7 @@ func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, i
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id int) {
+func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -211,7 +212,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 
 	// Generate unique id for this new connection
 	rand.Seed(time.Now().UTC().UnixNano())
-	newPeerId := rand.Int()
+	newPeerId := strconv.Itoa(rand.Int())
 
 	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
 
@@ -225,7 +226,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 		remoteWSUrl := url.URL{
 			Scheme: "wss",
 			Host:   fmt.Sprintf("%s:%d", hosts[i], record.Port),
-			Path:   fmt.Sprintf("%s/%d", record.Path, newPeerId),
+			Path:   fmt.Sprintf("%s/%s", record.Path, newPeerId),
 		}
 
 		// Establish Proxy WebSocket connection over TLS-SRP
@@ -309,7 +310,7 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 		if !proxy.writeable || proxy.id == broadcast.source {
 			continue
 		}
-		proxy.send("message", broadcast.source, 0, broadcast.payload)
+		proxy.send("message", broadcast.source, "", broadcast.payload)
 	}
 }
 
