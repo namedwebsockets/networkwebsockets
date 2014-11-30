@@ -54,7 +54,15 @@ ws.onopen = function() {
 };
 ```
 
-We can then send a _broadcast_ message to all the other _currently known_ channel peers in the network as follows:
+We can listen for incoming _broadcast_ messages from channel peers in the network as follows:
+
+```javascript
+ws.onmessage = function(event) {
+  console.log("Received message: " + event.data);
+};
+```
+
+We can send _broadcast_ messages to all the other _currently known_ channel peers in the network as follows:
 
 ```javascript
 ws.send('This is a broadcast message to *all* other channel peers');
@@ -131,41 +139,41 @@ When a new channel peer connects to `<channelName>` on the network a new message
 
 ```javascript
 {
-  Action: "connect", // a new channel peer has connected to <channelName>
-  Source: "<proxyId>", // the proxy connection to which this connected peer belongs
-  Target: "<newPeerId>" // the unique id of the new channel peer connection
+  action: "connect", // a new channel peer has connected to <channelName>
+  source: "<proxyId>", // the proxy connection to which this connected peer belongs
+  target: "<newPeerId>" // the unique id of the new channel peer connection
 }
 ```
 
-Similarly when a channel peer disconnects from `<channelName>` on the network a new message is _sent_ to this control connection as follows:
+Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to this control connection as follows:
 
 ```javascript
 {
-  Action: "disconnect", // an existing channel peer has disconnected from <channelName>
-  Source: "<proxyId>", // the proxy connection to which this disconnected peer belonged
-  Target: "<existingPeerId>" // the unique id of the existing channel peer connection
+  action: "disconnect", // an existing channel peer has disconnected from <channelName>
+  source: "<proxyId>", // the proxy connection to which this disconnected peer belonged
+  target: "<existingPeerId>" // the unique id of the existing channel peer connection
 }
 ```
 
-To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can _send_ it over this control connection as follows:
+When receiving a _direct message_ from another channel peer, that has bypassed the broadcast channel, it is sent to you over this control connection as follows:
 
 ```javascript
 {
-  Action: "message", // an existing channel peer has disconnected from <channelName>
-  // 'Source', if set, is ignored and will be set by the proxy to your channel peer's id
-  Target: "<recipient>" // the id of an existing channel peer you want to send a direct message to
-  Payload: "<data>" // the data you want to send to <recipient>
+  action: "message", // an existing channel peer has disconnected from <channelName>
+  source: "<sender>", // the id of the channel peer that sent you this direct message
+  target: "<you>" // your channel peer's id
+  data: "<data>" // the data sent to you by <sender>
 }
 ```
 
-To receive a _direct message_ from another channel peer, that has bypassed the broadcast channel, it is _sent_ to you over this control connection as follows:
+To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send it over this control connection as follows:
 
 ```javascript
 {
-  Action: "message", // an existing channel peer has disconnected from <channelName>
-  Source: "<sender>", // the id of the channel peer that sent you this direct message
-  Target: "<you>" // your channel peer's id
-  Payload: "<data>" // the data sent to you by <sender>
+  action: "message", // an existing channel peer has disconnected from <channelName>
+  // 'source', if set, is ignored and will be set by the proxy to your channel peer's id
+  target: "<recipient>" // the id of an existing channel peer you want to send a direct message to
+  data: "<data>" // the data you want to send to <recipient>
 }
 ```
 

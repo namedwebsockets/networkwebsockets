@@ -16,14 +16,14 @@ type ControlConnection struct {
 
 type ControlWireMessage struct {
 	// Proxy message type: "connect", "disconnect", "message"
-	Action string
+	Action string `json:"action"`
 
-	Source string
+	Source string `json:"source,omitempty"`
 
-	Target string
+	Target string `json:"target,omitempty"`
 
 	// Message contents
-	Payload string
+	Payload string `json:"data,omitempty"`
 }
 
 func NewControlConnection(id string, socket *websocket.Conn) *ControlConnection {

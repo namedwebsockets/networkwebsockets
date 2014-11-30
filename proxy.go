@@ -21,15 +21,15 @@ type ProxyConnection struct {
 
 type ProxyWireMessage struct {
 	// Proxy message type: "connect", "disconnect", "message", "directmessage"
-	Action string
+	Action string `json:"action"`
 
-	Source string
+	Source string `json:"source,omitempty"`
 
-	// Recipients' id list (0 === send to all peers)
-	Target string
+	// Recipients' id list (empty string === send to all peers)
+	Target string `json:"target,omitempty"`
 
 	// Raw message contents
-	Payload string
+	Payload string `json:"data,omitempty"`
 }
 
 func NewProxyConnection(id string, socket *websocket.Conn, isWriteable bool) *ProxyConnection {

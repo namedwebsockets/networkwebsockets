@@ -220,11 +220,11 @@
 		controlWebSocket.onmessage = function(evt) {
 			var data = JSON.parse(evt.data);
 
-			switch (data.Action) {
+			switch (data.action) {
 				case "connect":
 					// Create a new WebSocket shim object
-					var ws = new P2PWebSocket(data.Target, controlWebSocket);
-					p2pWebSockets[data.Target] = ws;
+					var ws = new P2PWebSocket(data.target, controlWebSocket);
+					p2pWebSockets[data.target] = ws;
 
 					// Add to root web sockets p2p sockets enumeration
 					rootWebSocket.peers.push(ws);
@@ -253,12 +253,12 @@
 
 					break;
 				case "disconnect":
-					var ws = p2pWebSockets[data.Target];
+					var ws = p2pWebSockets[data.target];
 					if (ws) {
 
 						// Remove from root web sockets p2p sockets enumeration
 						for (var i = 0; i < rootWebSocket.peers.length; i++) {
-							if (rootWebSocket.peers[i].id == data.Target) {
+							if (rootWebSocket.peers[i].id == data.target) {
 								rootWebSocket.peers.splice(i, 1);
 							}
 						}
@@ -267,16 +267,16 @@
 						//   - 'close' on p2p websocket object
 						//   - 'disconnect' on root websocket object
 						ws.__doClose(3000, "Closed by remote peer", rootWebSocket);
-						delete p2pWebSockets[data.Target];
+						delete p2pWebSockets[data.target];
 					}
 
 					break;
 				case "message":
 					// Use Source address to match up to target
-					var ws = p2pWebSockets[data.Source];
+					var ws = p2pWebSockets[data.source];
 					if (ws) {
 						// Re-encode data payload as string
-						var payload = data.Payload;
+						var payload = data.data;
 						if (Object.prototype.toString.call(payload) != '[object String]') {
 							payload = JSON.stringify(payload);
 						}
@@ -285,7 +285,7 @@
 						ws.__handleEvent({
 							type: "message",
 							message: payload,
-							senderId: data.Source
+							senderId: data.source
 						});
 					}
 
