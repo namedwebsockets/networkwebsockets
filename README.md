@@ -1,9 +1,11 @@
 Network Web Sockets
 ===
 
-#### Dynamic Web Socket binding, peer management, advertising and discovery over local networks ####
+#### Local Network broadcast channels with secure service discovery and encrypted proxy communication
 
-Network Web Sockets allow web pages, native applications and devices to create [*encrypted*](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)) Web Socket *networks within networks* by discovering, binding and connecting peers that share the same *channel name* in the local network. With this technology web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves to fulfill a variety of uses:
+Network Web Sockets allow web pages, native applications and devices to create [*encrypted*](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)) Web Socket networks by discovering, binding and connecting peers that share the same *channel name* in the local network.
+
+Web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves for a variety of purposes:
 
 * For discovering matching peer services on the local device and/or the local network.
 * To create full-duplex, encrypted communications channels between network devices, native applications and web applications.
@@ -13,9 +15,9 @@ Network Web Sockets allow web pages, native applications and devices to create [
 * To establish low latency local network multiplayer signalling channels for games.
 * To enable collaborative editing, sharing and other forms of communication between different web pages and applications on a local device or a local network.
 
-A web page or application can create a new Network Web Socket by choosing an appropriate *channel name* (any alphanumeric name) via any of the available [Network Web Socket interfaces](#network-web-socket-interfaces). When other web pages or applications create their own Network Web Socket connection with the same *channel name* they will join the matching Network Web Socket broadcast network.
+A web page or application can create a new Network Web Socket by choosing a *channel name* (any alphanumeric name) via any of the available [Network Web Socket interfaces](#network-web-socket-interfaces). When other peers join the same *channel name* then they will join all other peers in the same Network Web Socket broadcast network.
 
-You can read more about the network-level security used by Network Web Sockets on [this wiki page](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)).
+You can read more about the secure discovery process and proxy-to-proxy encryption used by Network Web Sockets on [this wiki page](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)).
 
 ### Getting started
 
