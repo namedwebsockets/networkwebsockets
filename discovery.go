@@ -85,6 +85,7 @@ func (dc *DiscoveryService) Register(domain string) {
 
 	if err != nil {
 		log.Printf("Failed to create new mDNS server. %v", err)
+		return
 	}
 
 	dc.server = serv
@@ -217,6 +218,8 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 
 	if err != nil {
 		log.Printf("Could not perform mDNS/DNS-SD query. %v", err)
+		time.Sleep(time.Second * timeoutSeconds) // sleep until next loop is scheduled
+		return
 	}
 }
 
