@@ -66,7 +66,7 @@ func (ws *WSClient) recv(t *testing.T, message string) {
 }
 
 // Send message to control channel
-func (ws *WSClient) sendDirect(t *testing.T, action string, source, target int, payload string) {
+func (ws *WSClient) sendDirect(t *testing.T, action string, source, target string, payload string) {
 	m := ControlWireMessage{
 		Action:  action,
 		Source:  source,
@@ -82,7 +82,7 @@ func (ws *WSClient) sendDirect(t *testing.T, action string, source, target int, 
 }
 
 // Receive message from control channel
-func (ws *WSClient) recvDirect(t *testing.T, action string, source, target int, payload string) {
+func (ws *WSClient) recvDirect(t *testing.T, action string, source, target string, payload string) {
 	if err := ws.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
@@ -125,9 +125,9 @@ func TestConnection_SameOrigin_Broadcast(t *testing.T) {
 
 	// Define connection identifiers
 	const (
-		c1_Id = 11113
-		c2_Id = 22223
-		c3_Id = 33333
+		c1_Id = "11113"
+		c2_Id = "22223"
+		c3_Id = "33333"
 	)
 
 	// Make named websocket test clients
@@ -190,10 +190,10 @@ func TestConnection_SameOrigin_DirectMessaging(t *testing.T) {
 
 	// Define connection identifiers
 	const (
-		c1_Id = 11114
-		c2_Id = 22224
-		c3_Id = 33334
-		c4_Id = 44444
+		c1_Id = "11114"
+		c2_Id = "22224"
+		c3_Id = "33334"
+		c4_Id = "44444"
 	)
 
 	// Make named websocket test clients
