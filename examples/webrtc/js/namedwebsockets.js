@@ -56,9 +56,9 @@
 		}
 
 		var message = {
-			"Action":  "message",
-			"Target":  this.id,
-			"Payload": data
+			"action":  "message",
+			"target":  this.id,
+			"data": data
 		};
 		this.socket.send(JSON.stringify(message));
 	};
@@ -272,7 +272,7 @@
 
 					break;
 				case "message":
-					// Use Source address to match up to target
+					// Use source address to match up to target
 					var ws = p2pWebSockets[data.source];
 					if (ws) {
 						// Re-encode data payload as string
