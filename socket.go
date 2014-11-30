@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -77,7 +76,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
 		servicePath: fmt.Sprintf("/network/%s", serviceName),
-		proxyPath:   fmt.Sprintf("/network/%d", rand.Int()),
+		proxyPath:   fmt.Sprintf("/%d", rand.Int()),
 
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
@@ -219,10 +218,6 @@ func (sock *NamedWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Re
 
 func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serviceName string) (*ProxyConnection, error) {
 
-	// Generate unique id for this new connection
-	rand.Seed(time.Now().UTC().UnixNano())
-	newPeerId := strconv.Itoa(rand.Int())
-
 	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
 
 	for i := 0; i < len(hosts); i++ {
@@ -235,7 +230,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 		remoteWSUrl := url.URL{
 			Scheme: "wss",
 			Host:   fmt.Sprintf("%s:%d", hosts[i], record.Port),
-			Path:   fmt.Sprintf("%s/%s", record.Path, newPeerId),
+			Path:   record.Path,
 		}
 
 		// Establish Proxy WebSocket connection over TLS-SRP
@@ -262,6 +257,10 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 		}
 
 		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
+
+		// Generate a new id for this proxy connection
+		rand.Seed(time.Now().UTC().UnixNano())
+		newPeerId := fmt.Sprintf("%d", rand.Int())
 
 		proxyConn := NewProxyConnection(newPeerId, ws, false)
 

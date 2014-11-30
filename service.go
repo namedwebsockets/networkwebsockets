@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"text/template"
 
 	tls "github.com/richtr/go-tls-srp"
@@ -20,13 +21,13 @@ var (
 
 	serviceNameRegexStr = "[A-Za-z0-9/\\+=\\*\\._-]{1,255}"
 
-	peerIdRegexStr = "[A-Za-z0-9]{4,}"
+	peerIdRegexStr = "[A-Za-z0-9]{4,255}"
 
 	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
 	isValidControlRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
 
-	isValidProxyRequest = regexp.MustCompile(fmt.Sprintf("^(/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
+	isValidProxyRequest = regexp.MustCompile(fmt.Sprintf("^/%s$", serviceNameRegexStr))
 
 	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
 
@@ -125,10 +126,10 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	// Serve the test console
 	serveMux.HandleFunc("/", service.serveConsoleTemplate)
 
-	// Serve websocket creation endpoint for localhost clients
+	// Serve network web socket creation endpoints for localhost clients
 	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
 
-	// Serve websocket control endpoint for localhost clients
+	// Serve network web socket control endpoints for localhost clients
 	serveMux.HandleFunc("/control/", service.serveLocalWSCreator)
 
 	// Listen and on loopback address + port
@@ -146,8 +147,8 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
-	// Serve secure websocket creation endpoints for network clients
-	serveMux.HandleFunc("/network/", service.serveProxyWSCreator)
+	// Serve secure network web socket proxy endpoints for network clients
+	serveMux.HandleFunc("/", service.serveProxyWSCreator)
 
 	// Generate random server salt for use in TLS-SRP data storage
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -311,16 +312,13 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 
 	group := service.networkSockets
 
-	pathParts := strings.Split(r.URL.Path, "/")
-
-	peerId := pathParts[len(pathParts)-1]
-	serviceHash := pathParts[len(pathParts)-2]
-
-	proxyPath := fmt.Sprintf("/network/%s", serviceHash)
-
 	// Resolve servicePath to an active named websocket service
 	for _, sock := range group.Services {
-		if sock.proxyPath == proxyPath {
+		if sock.proxyPath == r.URL.Path {
+			// Generate a new id for this proxy connection
+			rand.Seed(time.Now().UTC().UnixNano())
+			peerId := fmt.Sprintf("%d", rand.Int())
+
 			sock.serveProxy(w, r, peerId)
 			return
 		}
