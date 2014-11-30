@@ -34,19 +34,20 @@ var (
 /** Named Web Socket DNS-SD Discovery Client interface **/
 
 type DiscoveryService struct {
-	ServiceName string
-	ServiceHash string
-	Port        int
-	Path        string
-	server      *mdns.Server
+	Name string
+	Hash string
+	Path string
+	Port int
+
+	server *mdns.Server
 }
 
-func NewDiscoveryService(serviceName, serviceHash string, port int, path string) *DiscoveryService {
+func NewDiscoveryService(name, hash, path string, port int) *DiscoveryService {
 	discoveryService := &DiscoveryService{
-		ServiceName: serviceName,
-		ServiceHash: serviceHash,
-		Port:        port,
-		Path:        path,
+		Name: name,
+		Hash: hash,
+		Path: path,
+		Port: port,
 	}
 
 	return discoveryService
@@ -61,7 +62,7 @@ func (dc *DiscoveryService) Register(domain string) {
 		Service:  "_nws._tcp",
 		Domain:   domain,
 		Port:     dc.Port,
-		Info:     fmt.Sprintf("hash=%s,path=%s", dc.ServiceHash, dc.Path),
+		Info:     fmt.Sprintf("hash=%s,path=%s", dc.Hash, dc.Path),
 	}
 
 	if err := s.Init(); err != nil {
@@ -87,7 +88,7 @@ func (dc *DiscoveryService) Register(domain string) {
 
 	dc.server = serv
 
-	log.Printf("New '%s' channel advertised as '%s' in %s network", dc.ServiceName, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
+	log.Printf("New '%s' channel advertised as '%s' in %s network", dc.Name, fmt.Sprintf("%s._nws._tcp", dnssdServiceId), domain)
 }
 
 func (dc *DiscoveryService) Shutdown() {

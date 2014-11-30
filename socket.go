@@ -36,6 +36,10 @@ type NamedWebSocket struct {
 
 	serviceHash string
 
+	servicePath string
+
+	proxyPath string
+
 	// The current websocket connection control instances to this named websocket
 	controllers []*ControlConnection
 
@@ -67,9 +71,14 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	sock := &NamedWebSocket{
-		serviceName:     serviceName,
-		serviceHash:     serviceHash_Base64,
+		serviceName: serviceName,
+		serviceHash: serviceHash_Base64,
+		servicePath: fmt.Sprintf("/network/%s", serviceName),
+		proxyPath:   fmt.Sprintf("/network/%d", rand.Int()),
+
 		controllers:     make([]*ControlConnection, 0),
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
@@ -121,7 +130,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 func (sock *NamedWebSocket) advertise(port int) {
 	if sock.discoveryService == nil {
 		// Advertise new socket type on the network
-		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, port, fmt.Sprintf("/network/%s", sock.serviceHash))
+		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, sock.proxyPath, port)
 		sock.discoveryService.Register("local")
 	}
 }

@@ -1,7 +1,6 @@
 package networkwebsockets
 
 import (
-	"encoding/base64"
 	"fmt"
 	"log"
 	"math/rand"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/richtr/bcrypt"
 	tls "github.com/richtr/go-tls-srp"
 )
 
@@ -318,21 +316,11 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 	peerId := pathParts[len(pathParts)-1]
 	serviceHash := pathParts[len(pathParts)-2]
 
-	serviceScope := pathParts[len(pathParts)-3]
+	proxyPath := fmt.Sprintf("/network/%s", serviceHash)
 
-	// Resolve serviceHash to an active named websocket service name
-	serviceBCryptHash, _ := base64.StdEncoding.DecodeString(serviceHash)
-	serviceBCryptHashStr := string(serviceBCryptHash)
-
-	for serviceName := range group.knownServiceNames {
-		if bcrypt.Match(serviceName, serviceBCryptHashStr) {
-
-			sock := group.Services[fmt.Sprintf("/%s/%s", serviceScope, serviceName)]
-			if sock == nil {
-				log.Printf("Could not find matching %s NamedWebSocket object for service %s", serviceScope, serviceName)
-				continue
-			}
-
+	// Resolve servicePath to an active named websocket service
+	for _, sock := range group.Services {
+		if sock.proxyPath == proxyPath {
 			sock.serveProxy(w, r, peerId)
 			return
 		}
