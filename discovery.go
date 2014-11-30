@@ -218,7 +218,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 
 	if err != nil {
 		log.Printf("Could not perform mDNS/DNS-SD query. %v", err)
-		time.Sleep(time.Second * timeoutSeconds) // sleep until next loop is scheduled
+		time.Sleep(time.Second * time.Duration(timeoutSeconds)) // sleep until next loop is scheduled
 		return
 	}
 }
