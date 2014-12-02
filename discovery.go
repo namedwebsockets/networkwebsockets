@@ -103,25 +103,25 @@ func (dc *DiscoveryService) Shutdown() {
 
 type DiscoveryBrowser struct {
 	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
-	cachedDNSRecords map[string]*NamedWebSocket_DNSRecord
+	cachedDNSRecords map[string]*NetworkWebSocket_DNSRecord
 
 	closed bool
 }
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {
 	discoveryBrowser := &DiscoveryBrowser{
-		cachedDNSRecords: make(map[string]*NamedWebSocket_DNSRecord),
+		cachedDNSRecords: make(map[string]*NetworkWebSocket_DNSRecord),
 		closed:           false,
 	}
 
 	return discoveryBrowser
 }
 
-func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSeconds int) {
+func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, timeoutSeconds int) {
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	recordsCache := make(map[string]*NamedWebSocket_DNSRecord)
+	recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 
@@ -154,7 +154,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 					continue
 				}
 
-				serviceRecord, err := NewNamedWebSocketRecordFromDNSRecord(discoveredService)
+				serviceRecord, err := NewNetworkWebSocketRecordFromDNSRecord(discoveredService)
 				if err != nil {
 					log.Printf("err: %v", err)
 					continue
@@ -171,7 +171,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 				}
 
 				// Resolve discovered service hash provided against available services
-				var sock *NamedWebSocket
+				var sock *NetworkWebSocket
 				for _, knownService := range service.Channels {
 					if bcrypt.Match(knownService.serviceName, serviceRecord.Hash_BCrypt) {
 						sock = knownService
@@ -217,7 +217,7 @@ func (ds *DiscoveryBrowser) Shutdown() {
 
 /** Named Web Socket DNS Record interface **/
 
-type NamedWebSocket_DNSRecord struct {
+type NetworkWebSocket_DNSRecord struct {
 	*mdns.ServiceEntry
 
 	Path        string
@@ -225,7 +225,7 @@ type NamedWebSocket_DNSRecord struct {
 	Hash_BCrypt string
 }
 
-func NewNamedWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*NamedWebSocket_DNSRecord, error) {
+func NewNetworkWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*NetworkWebSocket_DNSRecord, error) {
 	servicePath := ""
 	serviceHash_Base64 := ""
 	serviceHash_BCrypt := ""
@@ -257,7 +257,7 @@ func NewNamedWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*Nam
 	}
 
 	// Create and return a new Named Web Socket DNS Record with the parsed information
-	newNamedWebSocketDNSRecord := &NamedWebSocket_DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
+	newNetworkWebSocketDNSRecord := &NetworkWebSocket_DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
 
-	return newNamedWebSocketDNSRecord, nil
+	return newNetworkWebSocketDNSRecord, nil
 }

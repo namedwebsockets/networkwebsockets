@@ -44,7 +44,7 @@ func (conn *PeerConnection) send(payload string) {
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (peer *PeerConnection) readConnectionPump(sock *NamedWebSocket) {
+func (peer *PeerConnection) readConnectionPump(sock *NetworkWebSocket) {
 	defer func() {
 		peer.removeConnection(sock)
 	}()
@@ -69,7 +69,7 @@ func (peer *PeerConnection) readConnectionPump(sock *NamedWebSocket) {
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (peer *PeerConnection) writeConnectionPump(sock *NamedWebSocket) {
+func (peer *PeerConnection) writeConnectionPump(sock *NetworkWebSocket) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -84,8 +84,8 @@ func (peer *PeerConnection) writeConnectionPump(sock *NamedWebSocket) {
 	}
 }
 
-// Set up a new NamedWebSocket connection instance
-func (peer *PeerConnection) addConnection(sock *NamedWebSocket) {
+// Set up a new NetworkWebSocket connection instance
+func (peer *PeerConnection) addConnection(sock *NetworkWebSocket) {
 	// Add this websocket instance to Named WebSocket broadcast list
 	sock.peers = append(sock.peers, peer)
 
@@ -109,8 +109,8 @@ func (peer *PeerConnection) addConnection(sock *NamedWebSocket) {
 	go peer.readConnectionPump(sock)
 }
 
-// Tear down an existing NamedWebSocket connection instance
-func (peer *PeerConnection) removeConnection(sock *NamedWebSocket) {
+// Tear down an existing NetworkWebSocket connection instance
+func (peer *PeerConnection) removeConnection(sock *NetworkWebSocket) {
 	for i, conn := range sock.peers {
 		if conn.id == peer.id {
 			sock.peers = append(sock.peers[:i], sock.peers[i+1:]...)

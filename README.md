@@ -98,7 +98,7 @@ ws.onconnect = function(event) {
 
     // Listen for direct messages from this peer
     peerWS.onmessage = function(event) {
-      console.log("Direct message received from [" + event.source + "]: " + event.data);
+      console.log("Direct message received from [" + peerWS.id + "]: " + event.data);
     }
 
     // Send a direct message to this peer

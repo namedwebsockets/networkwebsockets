@@ -12,8 +12,8 @@ import (
 )
 
 // Make a new Named WebSocket server
-func makeService(host string, port int) *NamedWebSocket_Service {
-	return NewNamedWebSocketService(host, port)
+func makeService(host string, port int) *NetworkWebSocket_Service {
+	return NewNetworkWebSocketService(host, port)
 }
 
 type WSClient struct {

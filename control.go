@@ -55,7 +55,7 @@ func (control *ControlConnection) send(action string, source string, target stri
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
+func (control *ControlConnection) readConnectionPump(sock *NetworkWebSocket) {
 	defer func() {
 		control.removeConnection(sock)
 	}()
@@ -109,7 +109,7 @@ func (control *ControlConnection) readConnectionPump(sock *NamedWebSocket) {
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (control *ControlConnection) writeConnectionPump(sock *NamedWebSocket) {
+func (control *ControlConnection) writeConnectionPump(sock *NetworkWebSocket) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -124,8 +124,8 @@ func (control *ControlConnection) writeConnectionPump(sock *NamedWebSocket) {
 	}
 }
 
-// Set up a new NamedWebSocket control connection instance
-func (control *ControlConnection) addConnection(sock *NamedWebSocket) {
+// Set up a new NetworkWebSocket control connection instance
+func (control *ControlConnection) addConnection(sock *NetworkWebSocket) {
 	sock.controllers = append(sock.controllers, control)
 
 	// Start connection read/write pumps
@@ -148,8 +148,8 @@ func (control *ControlConnection) addConnection(sock *NamedWebSocket) {
 	}
 }
 
-// Tear down an existing NamedWebSocket control connection instance
-func (control *ControlConnection) removeConnection(sock *NamedWebSocket) {
+// Tear down an existing NetworkWebSocket control connection instance
+func (control *ControlConnection) removeConnection(sock *NetworkWebSocket) {
 	for i, conn := range sock.controllers {
 		if conn.id == control.id {
 			sock.controllers = append(sock.controllers[:i], sock.controllers[i+1:]...)

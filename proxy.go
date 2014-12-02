@@ -73,7 +73,7 @@ func (proxy *ProxyConnection) setHash_Base64(hash string) {
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
+func (proxy *ProxyConnection) readConnectionPump(sock *NetworkWebSocket) {
 	defer func() {
 		proxy.removeConnection(sock)
 	}()
@@ -145,7 +145,7 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NamedWebSocket) {
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (proxy *ProxyConnection) writeConnectionPump(sock *NamedWebSocket) {
+func (proxy *ProxyConnection) writeConnectionPump(sock *NetworkWebSocket) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -160,8 +160,8 @@ func (proxy *ProxyConnection) writeConnectionPump(sock *NamedWebSocket) {
 	}
 }
 
-// Set up a new NamedWebSocket connection instance
-func (proxy *ProxyConnection) addConnection(sock *NamedWebSocket) {
+// Set up a new NetworkWebSocket connection instance
+func (proxy *ProxyConnection) addConnection(sock *NetworkWebSocket) {
 	sock.proxies = append(sock.proxies, proxy)
 
 	if proxy.writeable {
@@ -176,8 +176,8 @@ func (proxy *ProxyConnection) addConnection(sock *NamedWebSocket) {
 	go proxy.readConnectionPump(sock)
 }
 
-// Tear down an existing NamedWebSocket connection instance
-func (proxy *ProxyConnection) removeConnection(sock *NamedWebSocket) {
+// Tear down an existing NetworkWebSocket connection instance
+func (proxy *ProxyConnection) removeConnection(sock *NetworkWebSocket) {
 	for i, conn := range sock.proxies {
 		if conn.id == proxy.id {
 			sock.proxies = append(sock.proxies[:i], sock.proxies[i+1:]...)

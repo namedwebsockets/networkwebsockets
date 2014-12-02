@@ -39,21 +39,21 @@ var (
 	serviceTab = CredentialsStore(map[string]string{})
 )
 
-type NamedWebSocket_Service struct {
+type NetworkWebSocket_Service struct {
 	Host string
 	Port int
 
 	ProxyPort int
 
 	// All Named Web Socket channels that this service manages
-	Channels map[string]*NamedWebSocket
+	Channels map[string]*NetworkWebSocket
 
 	discoveryBrowser *DiscoveryBrowser
 
 	done chan int // blocks until .Stop() is called on this service
 }
 
-func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
+func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service {
 	if host == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -67,13 +67,13 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 		port = 9009
 	}
 
-	service := &NamedWebSocket_Service{
+	service := &NetworkWebSocket_Service{
 		Host: host,
 		Port: port,
 
 		ProxyPort: 0,
 
-		Channels: make(map[string]*NamedWebSocket),
+		Channels: make(map[string]*NetworkWebSocket),
 
 		discoveryBrowser: NewDiscoveryBrowser(),
 
@@ -83,7 +83,7 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 	return service
 }
 
-func (service *NamedWebSocket_Service) Start() <-chan int {
+func (service *NetworkWebSocket_Service) Start() <-chan int {
 	// Start mDNS/DNS-SD Network Web Socket discovery service
 	go service.StartDiscoveryBrowser(10)
 
@@ -96,7 +96,7 @@ func (service *NamedWebSocket_Service) Start() <-chan int {
 	return service.StopNotify()
 }
 
-func (service *NamedWebSocket_Service) StartHTTPServer() {
+func (service *NetworkWebSocket_Service) StartHTTPServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -120,7 +120,7 @@ func (service *NamedWebSocket_Service) StartHTTPServer() {
 	http.Serve(listener, serveMux)
 }
 
-func (service *NamedWebSocket_Service) StartProxyServer() {
+func (service *NetworkWebSocket_Service) StartProxyServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -160,7 +160,7 @@ func (service *NamedWebSocket_Service) StartProxyServer() {
 	http.Serve(tlsSrpListener, serveMux)
 }
 
-func (service *NamedWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
+func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
 	defer service.discoveryBrowser.Shutdown()
 
 	log.Printf("Listening for Named Web Socket services on the local network...")
@@ -170,7 +170,7 @@ func (service *NamedWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int)
 	}
 }
 
-func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
+func (service *NetworkWebSocket_Service) serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -211,7 +211,7 @@ func (service *NamedWebSocket_Service) serveConsoleTemplate(w http.ResponseWrite
 	t.Execute(w, service.Port)
 }
 
-func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter, r *http.Request) {
+func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter, r *http.Request) {
 	// Only allow access from localhost to all services
 	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
 		http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
@@ -257,7 +257,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 	sock := service.getServiceByName(serviceName)
 
 	if sock == nil {
-		sock = NewNamedWebSocket(service, serviceName, service.Port, isControl)
+		sock = NewNetworkWebSocket(service, serviceName, service.Port, isControl)
 		service.Channels[servicePath] = sock
 
 		// Terminate channel if it is closed
@@ -275,7 +275,7 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 	}
 }
 
-func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
+func (service *NetworkWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
@@ -309,7 +309,7 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 }
 
 // Check whether we know the given service name
-func (service *NamedWebSocket_Service) getServiceByName(serviceName string) *NamedWebSocket {
+func (service *NetworkWebSocket_Service) getServiceByName(serviceName string) *NetworkWebSocket {
 	for _, sock := range service.Channels {
 		if sock.serviceName == serviceName {
 			return sock
@@ -319,7 +319,7 @@ func (service *NamedWebSocket_Service) getServiceByName(serviceName string) *Nam
 }
 
 // Check whether a DNS-SD derived Network Web Socket hash is owned by the current proxy instance
-func (service *NamedWebSocket_Service) isOwnProxyService(serviceRecord *NamedWebSocket_DNSRecord) bool {
+func (service *NetworkWebSocket_Service) isOwnProxyService(serviceRecord *NetworkWebSocket_DNSRecord) bool {
 	for _, sock := range service.Channels {
 		if sock.serviceHash == serviceRecord.Hash_Base64 {
 			return true
@@ -329,7 +329,7 @@ func (service *NamedWebSocket_Service) isOwnProxyService(serviceRecord *NamedWeb
 }
 
 // Check whether a DNS-SD derived Network Web Socket hash is currently connected as a service
-func (service *NamedWebSocket_Service) isActiveProxyService(serviceRecord *NamedWebSocket_DNSRecord) bool {
+func (service *NetworkWebSocket_Service) isActiveProxyService(serviceRecord *NetworkWebSocket_DNSRecord) bool {
 	for _, sock := range service.Channels {
 		for _, proxy := range sock.proxies {
 			if proxy.Hash_Base64 == serviceRecord.Hash_Base64 {
@@ -342,19 +342,19 @@ func (service *NamedWebSocket_Service) isActiveProxyService(serviceRecord *Named
 
 // Stop stops the server gracefully, and shuts down the running goroutine.
 // Stop should be called after a Start(s), otherwise it will block forever.
-func (service *NamedWebSocket_Service) Stop() {
+func (service *NetworkWebSocket_Service) Stop() {
 	service.done <- 1
 }
 
 // StopNotify returns a channel that receives a empty integer
 // when the server is stopped.
-func (service *NamedWebSocket_Service) StopNotify() <-chan int { return service.done }
+func (service *NetworkWebSocket_Service) StopNotify() <-chan int { return service.done }
 
 //
 // HELPER FUNCTIONS
 //
 
-func (service *NamedWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {
+func (service *NetworkWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {
 	allowedLocalHosts := map[string]bool{
 		fmt.Sprintf("localhost:%d", service.Port):        true,
 		fmt.Sprintf("127.0.0.1:%d", service.Port):        true,

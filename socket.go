@@ -30,7 +30,7 @@ const (
 	maxMessageSize = 8192
 )
 
-type NamedWebSocket struct {
+type NetworkWebSocket struct {
 	serviceName string
 
 	serviceHash string
@@ -65,14 +65,14 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Create a new NamedWebSocket instance with a given service type
-func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isControl bool) *NamedWebSocket {
+// Create a new NetworkWebSocket instance with a given service type
+func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, port int, isControl bool) *NetworkWebSocket {
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	sock := &NamedWebSocket{
+	sock := &NetworkWebSocket{
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
 		servicePath: fmt.Sprintf("/network/%s", serviceName),
@@ -101,7 +101,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 		if service.discoveryBrowser != nil {
 
 			// Attempt to resolve discovered unknown service hashes with this service name
-			recordsCache := make(map[string]*NamedWebSocket_DNSRecord)
+			recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
 			for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
 				if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
 					if _, dErr := sock.dialFromDNSRecord(cachedRecord); dErr != nil {
@@ -122,7 +122,7 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 	return sock
 }
 
-func (sock *NamedWebSocket) advertise(port int) {
+func (sock *NetworkWebSocket) advertise(port int) {
 	if sock.discoveryService == nil {
 		// Advertise new socket type on the network
 		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, sock.proxyPath, port)
@@ -131,7 +131,7 @@ func (sock *NamedWebSocket) advertise(port int) {
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id string) {
+func (sock *NetworkWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -148,7 +148,7 @@ func (sock *NamedWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id string) {
+func (sock *NetworkWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -171,7 +171,7 @@ func (sock *NamedWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, i
 }
 
 // Set up a new web socket connection
-func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id string) {
+func (sock *NetworkWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -187,7 +187,7 @@ func (sock *NamedWebSocket) serveControl(w http.ResponseWriter, r *http.Request,
 	controlConn.addConnection(sock)
 }
 
-func (sock *NamedWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
 	// Chose a subprotocol from those offered in the client request
 	selectedSubprotocol := ""
 	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
@@ -212,7 +212,7 @@ func (sock *NamedWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Re
 	return ws, nil
 }
 
-func (sock *NamedWebSocket) dialFromDNSRecord(record *NamedWebSocket_DNSRecord) (*ProxyConnection, error) {
+func (sock *NetworkWebSocket) dialFromDNSRecord(record *NetworkWebSocket_DNSRecord) (*ProxyConnection, error) {
 
 	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
 
@@ -270,8 +270,8 @@ func (sock *NamedWebSocket) dialFromDNSRecord(record *NamedWebSocket_DNSRecord) 
 
 }
 
-// Send service broadcast messages on NamedWebSocket connections
-func (sock *NamedWebSocket) messageDispatcher() {
+// Send service broadcast messages on NetworkWebSocket connections
+func (sock *NetworkWebSocket) messageDispatcher() {
 	for {
 		select {
 		case wsBroadcast, ok := <-sock.broadcastBuffer:
@@ -286,9 +286,9 @@ func (sock *NamedWebSocket) messageDispatcher() {
 	}
 }
 
-// Broadcast a message to all peer connections for this NamedWebSocket
+// Broadcast a message to all peer connections for this NetworkWebSocket
 // instance (except to the src websocket connection)
-func (sock *NamedWebSocket) localBroadcast(broadcast *Message) {
+func (sock *NetworkWebSocket) localBroadcast(broadcast *Message) {
 	// Write to peer connections
 	for _, peer := range sock.peers {
 		// don't send back to self
@@ -299,9 +299,9 @@ func (sock *NamedWebSocket) localBroadcast(broadcast *Message) {
 	}
 }
 
-// Broadcast a message to all proxy connections for this NamedWebSocket
+// Broadcast a message to all proxy connections for this NetworkWebSocket
 // instance (except to the src websocket connection)
-func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
+func (sock *NetworkWebSocket) remoteBroadcast(broadcast *Message) {
 	// Only send to remote proxies if this message was not received from a proxy itself
 	if broadcast.fromProxy {
 		return
@@ -320,7 +320,7 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 
 // Destroy this Network Web Socket service instance, close all
 // peer, control and proxy connections.
-func (sock *NamedWebSocket) close() {
+func (sock *NetworkWebSocket) close() {
 	// Close discovery browser
 	if sock.discoveryService != nil {
 		sock.discoveryService.Shutdown()
@@ -344,7 +344,7 @@ func (sock *NamedWebSocket) close() {
 
 // StopNotify returns a channel that receives a empty integer
 // when the channel service is terminated.
-func (sock *NamedWebSocket) StopNotify() <-chan int { return sock.done }
+func (sock *NetworkWebSocket) StopNotify() <-chan int { return sock.done }
 
 /** TLS-SRP Dialer interface **/
 

@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 <html>
 <head>
-	<title>NamedWebSocket Test Console</title>
+	<title>Network Web Sockets Test Console</title>
 
 	<script>
  /***
@@ -203,7 +203,7 @@
 
  /**** END WEBSOCKET SHIM ****/
 
- 	var NamedWebSocket = function (serviceName, subprotocols) {
+ 	var _NetworkWebSocket = function (serviceName, subprotocols) {
  		if (!isValidServiceName(serviceName)) {
  			throw "Invalid Service Name: " + serviceName;
  		}
@@ -214,7 +214,7 @@
 
  		var rootWebSocket = new WebSocket(endpointUrlBase + path + peerId, subprotocols);
 
- 		// New custom attributes on NamedWebSocket objects
+ 		// New custom attributes on NetworkWebSocket objects
  		rootWebSocket.id    = peerId
  		rootWebSocket.peers = [];
 
@@ -303,7 +303,7 @@
  	};
 
  	var NetworkWebSocket = function (serviceName, subprotocols) {
- 		return new NamedWebSocket(serviceName, subprotocols);
+ 		return new _NetworkWebSocket(serviceName, subprotocols);
  	};
 
  	// Expose global functions
