@@ -118,6 +118,8 @@ func (peer *PeerConnection) removeConnection(sock *NamedWebSocket) {
 		}
 	}
 
+	peer.ws.Close()
+
 	// Find associated control connection and close also
 	for _, control := range sock.controllers {
 		if control.id == peer.id {
@@ -141,5 +143,8 @@ func (peer *PeerConnection) removeConnection(sock *NamedWebSocket) {
 		}
 	}
 
-	peer.ws.Close()
+	// If no more local peers are connected then remove the current Named Web Socket service
+	if len(sock.peers) == 0 {
+		sock.close()
+	}
 }

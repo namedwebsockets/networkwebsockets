@@ -53,6 +53,8 @@ type NamedWebSocket struct {
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryService *DiscoveryService
+
+	done chan int // blocks until .close() is called
 }
 
 var upgrader = websocket.Upgrader{
@@ -65,8 +67,6 @@ var upgrader = websocket.Upgrader{
 
 // Create a new NamedWebSocket instance with a given service type
 func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port int, isControl bool) *NamedWebSocket {
-	group := service.networkSockets
-
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
@@ -82,6 +82,8 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
 		broadcastBuffer: make(chan *Message, 512),
+
+		done: make(chan int),
 	}
 
 	go sock.messageDispatcher()
@@ -90,37 +92,31 @@ func NewNamedWebSocket(service *NamedWebSocket_Service, serviceName string, port
 
 	if !isControl {
 
-		group.knownServiceNames[sock.serviceName] = true
-
 		// Add TLS-SRP credentials for access to this service to credentials store
 		// TODO isolate this per socket
 		serviceTab[sock.serviceHash] = sock.serviceName
 
-		// Mark this service as advertised (to ignore during mDNS/DNS-SD discovery process)
-		group.AdvertisedServiceHashes[sock.serviceHash] = true
-
 		go sock.advertise(service.ProxyPort)
 
-		// Attempt to resolve discovered unknown service hashes with this service name
-		unresolvedServiceRecords := make(map[string]*NamedWebSocket_DNSRecord)
-		for _, record := range group.UnresolvedServiceRecords {
+		if service.discoveryBrowser != nil {
 
-			if bcrypt.Match(sock.serviceName, record.Hash_BCrypt) {
-				if _, dErr := sock.dialDNSRecord(record, sock.serviceName); dErr != nil {
-					log.Printf("err: %v", dErr)
+			// Attempt to resolve discovered unknown service hashes with this service name
+			recordsCache := make(map[string]*NamedWebSocket_DNSRecord)
+			for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
+				if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
+					if _, dErr := sock.dialFromDNSRecord(cachedRecord); dErr != nil {
+						log.Printf("err: %v", dErr)
+					}
+				} else {
+					// Maintain as an unresolved entry in cache
+					recordsCache[cachedRecord.Hash_Base64] = cachedRecord
 				}
-
-				// Add to resolved entries
-				group.ResolvedServiceRecords[record.Hash_Base64] = record
-			} else {
-				// Maintain as an unresolved entry
-				unresolvedServiceRecords[record.Hash_Base64] = record
 			}
 
-		}
+			// Replace unresolved DNS-SD service entries cache
+			service.discoveryBrowser.cachedDNSRecords = recordsCache
 
-		// Replace unresolved entries cache
-		group.UnresolvedServiceRecords = unresolvedServiceRecords
+		}
 	}
 
 	return sock
@@ -216,7 +212,7 @@ func (sock *NamedWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Re
 	return ws, nil
 }
 
-func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serviceName string) (*ProxyConnection, error) {
+func (sock *NamedWebSocket) dialFromDNSRecord(record *NamedWebSocket_DNSRecord) (*ProxyConnection, error) {
 
 	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
 
@@ -243,7 +239,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 			},
 			&tls.Config{
 				SRPUser:     record.Hash_Base64,
-				SRPPassword: serviceName,
+				SRPPassword: sock.serviceName,
 			},
 		}
 
@@ -263,7 +259,7 @@ func (sock *NamedWebSocket) dialDNSRecord(record *NamedWebSocket_DNSRecord, serv
 		newPeerId := fmt.Sprintf("%d", rand.Int())
 
 		proxyConn := NewProxyConnection(newPeerId, ws, false)
-
+		proxyConn.setHash_Base64(record.Hash_Base64)
 		proxyConn.addConnection(sock)
 
 		return proxyConn, nil
@@ -321,6 +317,34 @@ func (sock *NamedWebSocket) remoteBroadcast(broadcast *Message) {
 		proxy.send("message", broadcast.source, "", broadcast.payload)
 	}
 }
+
+// Destroy this Network Web Socket service instance, close all
+// peer, control and proxy connections.
+func (sock *NamedWebSocket) close() {
+	// Close discovery browser
+	if sock.discoveryService != nil {
+		sock.discoveryService.Shutdown()
+	}
+
+	for _, peer := range sock.peers {
+		peer.removeConnection(sock)
+	}
+
+	for _, control := range sock.controllers {
+		control.removeConnection(sock)
+	}
+
+	for _, proxy := range sock.proxies {
+		proxy.removeConnection(sock)
+	}
+
+	// Indicate object is closed
+	sock.done <- 1
+}
+
+// StopNotify returns a channel that receives a empty integer
+// when the channel service is terminated.
+func (sock *NamedWebSocket) StopNotify() <-chan int { return sock.done }
 
 /** TLS-SRP Dialer interface **/
 

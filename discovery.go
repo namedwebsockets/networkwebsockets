@@ -102,11 +102,17 @@ func (dc *DiscoveryService) Shutdown() {
 /** Named Web Socket DNS-SD Discovery Server interface **/
 
 type DiscoveryBrowser struct {
+	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
+	cachedDNSRecords map[string]*NamedWebSocket_DNSRecord
+
 	closed bool
 }
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {
-	discoveryBrowser := &DiscoveryBrowser{}
+	discoveryBrowser := &DiscoveryBrowser{
+		cachedDNSRecords: make(map[string]*NamedWebSocket_DNSRecord),
+		closed:           false,
+	}
 
 	return discoveryBrowser
 }
@@ -115,18 +121,15 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	unresolvedServiceRecords := make(map[string]*NamedWebSocket_DNSRecord)
+	recordsCache := make(map[string]*NamedWebSocket_DNSRecord)
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 
 	var targetIPv4 *net.UDPAddr
 	var targetIPv6 *net.UDPAddr
-	var group *NamedWebSocket_Service_Group
 
 	targetIPv4 = network_ipv4Addr
 	targetIPv6 = network_ipv6Addr
-
-	group = service.networkSockets
 
 	// Only look for Named Web Socket DNS-SD services
 	params := &mdns.QueryParam{
@@ -158,50 +161,35 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 				}
 
 				// Ignore our own NetworkWebSocket services
-				if isOwned := group.AdvertisedServiceHashes[serviceRecord.Hash_Base64]; isOwned {
+				if service.isOwnProxyService(serviceRecord) {
 					continue
 				}
 
-				// Ignore previously discovered NetworkWebSocket services
-				if isResolved := group.ResolvedServiceRecords[serviceRecord.Hash_Base64]; isResolved != nil {
+				// Ignore previously discovered NetworkWebSocket proxy services
+				if service.isActiveProxyService(serviceRecord) {
 					continue
 				}
 
-				serviceName := ""
-				localServicePath := ""
-
-				// Resolve service hash provided against advertised services
-				isKnown := false
-				for knownServiceName := range group.knownServiceNames {
-					if bcrypt.Match(knownServiceName, serviceRecord.Hash_BCrypt) {
-						serviceName = knownServiceName
-						localServicePath = fmt.Sprintf("/network/%s", knownServiceName)
-						isKnown = true
+				// Resolve discovered service hash provided against available services
+				var sock *NamedWebSocket
+				for _, knownService := range service.Channels {
+					if bcrypt.Match(knownService.serviceName, serviceRecord.Hash_BCrypt) {
+						sock = knownService
 						break
 					}
 				}
 
-				if !isKnown {
-					// Store as an unresolved DNS record
-					unresolvedServiceRecords[serviceRecord.Hash_Base64] = serviceRecord
+				if sock != nil {
+					// Create new web socket connection toward discovered proxy
+					if _, dErr := sock.dialFromDNSRecord(serviceRecord); dErr != nil {
+						log.Printf("err: %v", dErr)
+						continue
+					}
+				} else {
+					// Store as an unresolved DNS-SD record
+					recordsCache[serviceRecord.Hash_Base64] = serviceRecord
 					continue
 				}
-
-				// Resolve websocket connection
-				sock := group.Services[localServicePath]
-				if sock == nil {
-					sock = NewNamedWebSocket(service, serviceName, service.Port, false)
-					group.Services[localServicePath] = sock
-				}
-
-				// Create proxy websocket connection
-				if _, dErr := sock.dialDNSRecord(serviceRecord, serviceName); dErr != nil {
-					log.Printf("err: %v", dErr)
-					continue
-				}
-
-				// Set DNS record as resolved
-				group.ResolvedServiceRecords[serviceRecord.Hash_Base64] = serviceRecord
 
 			case <-finish:
 				complete = true
@@ -209,7 +197,7 @@ func (ds *DiscoveryBrowser) Browse(service *NamedWebSocket_Service, timeoutSecon
 		}
 
 		// Replace unresolved DNS records cache
-		group.UnresolvedServiceRecords = unresolvedServiceRecords
+		ds.cachedDNSRecords = recordsCache
 
 	}()
 

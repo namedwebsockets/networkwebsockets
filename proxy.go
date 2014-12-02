@@ -12,6 +12,10 @@ type ProxyConnection struct {
 	// Inherit attributes from PeerConnection struct
 	PeerConnection
 
+	// Discovered proxy connection's base64 hash value
+	// empty unless set via .setHash_Base64()
+	Hash_Base64 string
+
 	// List of connection ids that this proxy connection 'owns'
 	peers map[string]bool
 
@@ -38,8 +42,9 @@ func NewProxyConnection(id string, socket *websocket.Conn, isWriteable bool) *Pr
 			id: id,
 			ws: socket,
 		},
-		writeable: isWriteable,
-		peers:     make(map[string]bool),
+		Hash_Base64: "",
+		writeable:   isWriteable,
+		peers:       make(map[string]bool),
 	}
 
 	return proxyConn
@@ -61,6 +66,10 @@ func (proxy *ProxyConnection) send(action string, source string, target string, 
 
 	proxy.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	proxy.ws.WriteMessage(websocket.TextMessage, messagePayload)
+}
+
+func (proxy *ProxyConnection) setHash_Base64(hash string) {
+	proxy.Hash_Base64 = hash
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher

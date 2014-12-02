@@ -45,24 +45,12 @@ type NamedWebSocket_Service struct {
 
 	ProxyPort int
 
-	networkSockets *NamedWebSocket_Service_Group
+	// All Named Web Socket channels that this service manages
+	Channels map[string]*NamedWebSocket
 
 	discoveryBrowser *DiscoveryBrowser
 
-	down chan int // blocks until .Stop() is called on this service
-}
-
-type NamedWebSocket_Service_Group struct {
-	// All Named Web Socket services that this service manages
-	Services map[string]*NamedWebSocket
-
-	// Discovery related trackers for services advertised and registered
-	knownServiceNames map[string]bool
-
-	AdvertisedServiceHashes map[string]bool
-
-	ResolvedServiceRecords   map[string]*NamedWebSocket_DNSRecord
-	UnresolvedServiceRecords map[string]*NamedWebSocket_DNSRecord
+	done chan int // blocks until .Stop() is called on this service
 }
 
 func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
@@ -85,25 +73,14 @@ func NewNamedWebSocketService(host string, port int) *NamedWebSocket_Service {
 
 		ProxyPort: 0,
 
-		networkSockets: NewNamedWebSocketServiceGroup(),
+		Channels: make(map[string]*NamedWebSocket),
 
 		discoveryBrowser: NewDiscoveryBrowser(),
 
-		down: make(chan int),
+		done: make(chan int),
 	}
 
 	return service
-}
-
-func NewNamedWebSocketServiceGroup() *NamedWebSocket_Service_Group {
-	return &NamedWebSocket_Service_Group{
-		Services:                make(map[string]*NamedWebSocket),
-		knownServiceNames:       make(map[string]bool),
-		AdvertisedServiceHashes: make(map[string]bool),
-
-		ResolvedServiceRecords:   make(map[string]*NamedWebSocket_DNSRecord),
-		UnresolvedServiceRecords: make(map[string]*NamedWebSocket_DNSRecord),
-	}
 }
 
 func (service *NamedWebSocket_Service) Start() <-chan int {
@@ -116,7 +93,7 @@ func (service *NamedWebSocket_Service) Start() <-chan int {
 	// Start TLS-SRP Network Web Socket (wss) proxy server
 	go service.StartProxyServer()
 
-	return service.DownNotify()
+	return service.StopNotify()
 }
 
 func (service *NamedWebSocket_Service) StartHTTPServer() {
@@ -276,13 +253,18 @@ func (service *NamedWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter
 		return
 	}
 
-	group := service.networkSockets
+	// Resolve to web socket connection channel
+	sock := service.getServiceByName(serviceName)
 
-	// Resolve websocket connection
-	sock := group.Services[servicePath]
 	if sock == nil {
 		sock = NewNamedWebSocket(service, serviceName, service.Port, isControl)
-		group.Services[servicePath] = sock
+		service.Channels[servicePath] = sock
+
+		// Terminate channel if it is closed
+		go func() {
+			<-sock.StopNotify()
+			delete(service.Channels, servicePath)
+		}()
 	}
 
 	// Handle websocket connection
@@ -310,10 +292,8 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 		return
 	}
 
-	group := service.networkSockets
-
 	// Resolve servicePath to an active named websocket service
-	for _, sock := range group.Services {
+	for _, sock := range service.Channels {
 		if sock.proxyPath == r.URL.Path {
 			// Generate a new id for this proxy connection
 			rand.Seed(time.Now().UTC().UnixNano())
@@ -328,15 +308,47 @@ func (service *NamedWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter
 	return
 }
 
+// Check whether we know the given service name
+func (service *NamedWebSocket_Service) getServiceByName(serviceName string) *NamedWebSocket {
+	for _, sock := range service.Channels {
+		if sock.serviceName == serviceName {
+			return sock
+		}
+	}
+	return nil
+}
+
+// Check whether a DNS-SD derived Network Web Socket hash is owned by the current proxy instance
+func (service *NamedWebSocket_Service) isOwnProxyService(serviceRecord *NamedWebSocket_DNSRecord) bool {
+	for _, sock := range service.Channels {
+		if sock.serviceHash == serviceRecord.Hash_Base64 {
+			return true
+		}
+	}
+	return false
+}
+
+// Check whether a DNS-SD derived Network Web Socket hash is currently connected as a service
+func (service *NamedWebSocket_Service) isActiveProxyService(serviceRecord *NamedWebSocket_DNSRecord) bool {
+	for _, sock := range service.Channels {
+		for _, proxy := range sock.proxies {
+			if proxy.Hash_Base64 == serviceRecord.Hash_Base64 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Stop stops the server gracefully, and shuts down the running goroutine.
 // Stop should be called after a Start(s), otherwise it will block forever.
 func (service *NamedWebSocket_Service) Stop() {
-	service.down <- 1
+	service.done <- 1
 }
 
-// DownNotify returns a channel that receives a empty integer
+// StopNotify returns a channel that receives a empty integer
 // when the server is stopped.
-func (service *NamedWebSocket_Service) DownNotify() <-chan int { return service.down }
+func (service *NamedWebSocket_Service) StopNotify() <-chan int { return service.done }
 
 //
 // HELPER FUNCTIONS
