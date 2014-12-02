@@ -143,8 +143,8 @@ func (sock *NetworkWebSocket) servePeer(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	peerConn := NewPeerConnection(id, ws)
-	peerConn.addConnection(sock)
+	_ = NewPeerConnection(sock, id, ws)
+
 }
 
 // Set up a new web socket connection
@@ -166,8 +166,7 @@ func (sock *NetworkWebSocket) serveProxy(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	proxyConn := NewProxyConnection(id, ws, true)
-	proxyConn.addConnection(sock)
+	_ = NewProxyConnection(sock, id, ws, true)
 }
 
 // Set up a new web socket connection
@@ -183,8 +182,7 @@ func (sock *NetworkWebSocket) serveControl(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	controlConn := NewControlConnection(id, ws)
-	controlConn.addConnection(sock)
+	_ = NewControlConnection(sock, id, ws)
 }
 
 func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
@@ -258,9 +256,8 @@ func (sock *NetworkWebSocket) dialFromDNSRecord(record *NetworkWebSocket_DNSReco
 		rand.Seed(time.Now().UTC().UnixNano())
 		newPeerId := fmt.Sprintf("%d", rand.Int())
 
-		proxyConn := NewProxyConnection(newPeerId, ws, false)
+		proxyConn := NewProxyConnection(sock, newPeerId, ws, false)
 		proxyConn.setHash_Base64(record.Hash_Base64)
-		proxyConn.addConnection(sock)
 
 		return proxyConn, nil
 
@@ -311,7 +308,7 @@ func (sock *NetworkWebSocket) remoteBroadcast(broadcast *Message) {
 	for _, proxy := range sock.proxies {
 		// don't send back to self
 		// only write to *writeable* proxy connections
-		if !proxy.writeable || proxy.id == broadcast.source {
+		if !proxy.writeable || proxy.base.id == broadcast.source {
 			continue
 		}
 		proxy.send("message", broadcast.source, "", broadcast.payload)
@@ -320,22 +317,22 @@ func (sock *NetworkWebSocket) remoteBroadcast(broadcast *Message) {
 
 // Destroy this Network Web Socket service instance, close all
 // peer, control and proxy connections.
-func (sock *NetworkWebSocket) close() {
+func (sock *NetworkWebSocket) Stop() {
 	// Close discovery browser
 	if sock.discoveryService != nil {
 		sock.discoveryService.Shutdown()
 	}
 
 	for _, peer := range sock.peers {
-		peer.removeConnection(sock)
+		peer.Stop()
 	}
 
 	for _, control := range sock.controllers {
-		control.removeConnection(sock)
+		control.Stop()
 	}
 
 	for _, proxy := range sock.proxies {
-		proxy.removeConnection(sock)
+		proxy.Stop()
 	}
 
 	// Indicate object is closed

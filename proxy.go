@@ -10,14 +10,14 @@ import (
 
 type ProxyConnection struct {
 	// Inherit attributes from PeerConnection struct
-	PeerConnection
+	base PeerConnection
 
 	// Discovered proxy connection's base64 hash value
 	// empty unless set via .setHash_Base64()
 	Hash_Base64 string
 
 	// List of connection ids that this proxy connection 'owns'
-	peers map[string]bool
+	peerIds map[string]bool
 
 	// Whether this proxy connection is writeable
 	writeable bool
@@ -36,18 +36,31 @@ type ProxyWireMessage struct {
 	Payload string `json:"data,omitempty"`
 }
 
-func NewProxyConnection(id string, socket *websocket.Conn, isWriteable bool) *ProxyConnection {
+func NewProxyConnection(channel *NetworkWebSocket, id string, conn *websocket.Conn, isWriteable bool) *ProxyConnection {
 	proxyConn := &ProxyConnection{
-		PeerConnection: PeerConnection{
-			id: id,
-			ws: socket,
+		base: PeerConnection{
+			id:      id,
+			channel: channel,
+			conn:    conn,
 		},
 		Hash_Base64: "",
 		writeable:   isWriteable,
-		peers:       make(map[string]bool),
+		peerIds:     make(map[string]bool),
 	}
 
+	// Start websocket read/write pumps
+	proxyConn.Start()
+
 	return proxyConn
+}
+
+func (proxy *ProxyConnection) Start() {
+	// Start connection read/write pumps
+	go proxy.writeConnectionPump()
+	go proxy.readConnectionPump()
+
+	// Add reference to this proxy connection to channel
+	proxy.addConnection()
 }
 
 // Send a message to the target websocket connection
@@ -64,8 +77,8 @@ func (proxy *ProxyConnection) send(action string, source string, target string, 
 		return
 	}
 
-	proxy.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	proxy.ws.WriteMessage(websocket.TextMessage, messagePayload)
+	proxy.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	proxy.base.conn.WriteMessage(websocket.TextMessage, messagePayload)
 }
 
 func (proxy *ProxyConnection) setHash_Base64(hash string) {
@@ -73,15 +86,15 @@ func (proxy *ProxyConnection) setHash_Base64(hash string) {
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (proxy *ProxyConnection) readConnectionPump(sock *NetworkWebSocket) {
+func (proxy *ProxyConnection) readConnectionPump() {
 	defer func() {
-		proxy.removeConnection(sock)
+		proxy.Stop()
 	}()
-	proxy.ws.SetReadLimit(maxMessageSize)
-	proxy.ws.SetReadDeadline(time.Now().Add(pongWait))
-	proxy.ws.SetPongHandler(func(string) error { proxy.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	proxy.base.conn.SetReadLimit(maxMessageSize)
+	proxy.base.conn.SetReadDeadline(time.Now().Add(pongWait))
+	proxy.base.conn.SetPongHandler(func(string) error { proxy.base.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		opCode, buf, err := proxy.ws.ReadMessage()
+		opCode, buf, err := proxy.base.conn.ReadMessage()
 		if err != nil || opCode != websocket.TextMessage {
 			break
 		}
@@ -95,20 +108,20 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NetworkWebSocket) {
 
 		case "connect":
 
-			proxy.peers[message.Target] = true
+			proxy.peerIds[message.Target] = true
 
 			// Inform all control connections that this proxy owns this peer connection
-			for _, control := range sock.controllers {
-				control.send("connect", control.id, message.Target, "")
+			for _, control := range proxy.base.channel.controllers {
+				control.send("connect", control.base.id, message.Target, "")
 			}
 
 		case "disconnect":
 
-			delete(proxy.peers, message.Target)
+			delete(proxy.peerIds, message.Target)
 
 			// Inform all control connections that this proxy no longer owns this peer connection
-			for _, control := range sock.controllers {
-				control.send("disconnect", control.id, message.Target, "")
+			for _, control := range proxy.base.channel.controllers {
+				control.send("disconnect", control.base.id, message.Target, "")
 			}
 
 		case "message":
@@ -121,15 +134,15 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NetworkWebSocket) {
 				fromProxy: true,
 			}
 
-			sock.broadcastBuffer <- wsBroadcast
+			proxy.base.channel.broadcastBuffer <- wsBroadcast
 
 		case "directmessage":
 
 			messageSent := false
 
 			// Relay message to control channel that matches target
-			for _, control := range sock.controllers {
-				if control.id == message.Target {
+			for _, control := range proxy.base.channel.controllers {
+				if control.base.id == message.Target {
 					control.send("message", message.Source, message.Target, message.Payload)
 					messageSent = true
 					break
@@ -145,52 +158,53 @@ func (proxy *ProxyConnection) readConnectionPump(sock *NetworkWebSocket) {
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (proxy *ProxyConnection) writeConnectionPump(sock *NetworkWebSocket) {
+func (proxy *ProxyConnection) writeConnectionPump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		proxy.removeConnection(sock)
+		proxy.Stop()
 	}()
 	for {
 		select {
 		case <-ticker.C:
-			proxy.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			proxy.ws.WriteMessage(websocket.PingMessage, []byte{})
+			proxy.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			proxy.base.conn.WriteMessage(websocket.PingMessage, []byte{})
 		}
 	}
 }
 
 // Set up a new NetworkWebSocket connection instance
-func (proxy *ProxyConnection) addConnection(sock *NetworkWebSocket) {
-	sock.proxies = append(sock.proxies, proxy)
+func (proxy *ProxyConnection) addConnection() {
+	proxy.base.channel.proxies = append(proxy.base.channel.proxies, proxy)
 
 	if proxy.writeable {
 		// Inform this proxy of all the peer connections we own
-		for _, peer := range sock.peers {
-			proxy.send("connect", proxy.id, peer.id, "")
+		for _, peer := range proxy.base.channel.peers {
+			proxy.send("connect", proxy.base.id, peer.id, "")
 		}
 	}
-
-	// Start connection read/write pumps
-	go proxy.writeConnectionPump(sock)
-	go proxy.readConnectionPump(sock)
 }
 
 // Tear down an existing NetworkWebSocket connection instance
-func (proxy *ProxyConnection) removeConnection(sock *NetworkWebSocket) {
-	for i, conn := range sock.proxies {
-		if conn.id == proxy.id {
-			sock.proxies = append(sock.proxies[:i], sock.proxies[i+1:]...)
+func (proxy *ProxyConnection) removeConnection() {
+	for i, conn := range proxy.base.channel.proxies {
+		if proxy.base.id == conn.base.id {
+			proxy.base.channel.proxies = append(proxy.base.channel.proxies[:i], proxy.base.channel.proxies[i+1:]...)
 			break
 		}
 	}
 
 	if proxy.writeable {
 		// Inform this proxy of all the peer connections we no longer own
-		for _, peer := range sock.peers {
-			proxy.send("disconnect", proxy.id, peer.id, "")
+		for _, peer := range proxy.base.channel.peers {
+			proxy.send("disconnect", proxy.base.id, peer.id, "")
 		}
 	}
 
-	proxy.ws.Close()
+	proxy.base.conn.Close()
+}
+
+func (proxy *ProxyConnection) Stop() {
+	// Remove references to this control connection from channel
+	proxy.removeConnection()
 }

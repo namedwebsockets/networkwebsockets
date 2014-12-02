@@ -10,8 +10,11 @@ type PeerConnection struct {
 	// Unique identifier for this peer connection
 	id string
 
+	// The Network Web Socket channel to which this peer connection belongs
+	channel *NetworkWebSocket
+
 	// WebSocket connection object
-	ws *websocket.Conn
+	conn *websocket.Conn
 }
 
 type Message struct {
@@ -28,31 +31,44 @@ type Message struct {
 	fromProxy bool
 }
 
-func NewPeerConnection(id string, socket *websocket.Conn) *PeerConnection {
+func NewPeerConnection(channel *NetworkWebSocket, id string, conn *websocket.Conn) *PeerConnection {
 	peerConn := &PeerConnection{
-		id: id,
-		ws: socket,
+		id:      id,
+		channel: channel,
+		conn:    conn,
 	}
+
+	// Start websocket read/write pumps
+	peerConn.Start()
 
 	return peerConn
 }
 
+func (peer *PeerConnection) Start() {
+	// Start connection read/write pumps
+	go peer.writeConnectionPump()
+	go peer.readConnectionPump()
+
+	// Add reference to this peer connection to channel
+	peer.addConnection()
+}
+
 // Send a message to the target websocket connection
-func (conn *PeerConnection) send(payload string) {
-	conn.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	conn.ws.WriteMessage(websocket.TextMessage, []byte(payload))
+func (peer *PeerConnection) send(payload string) {
+	peer.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	peer.conn.WriteMessage(websocket.TextMessage, []byte(payload))
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (peer *PeerConnection) readConnectionPump(sock *NetworkWebSocket) {
+func (peer *PeerConnection) readConnectionPump() {
 	defer func() {
-		peer.removeConnection(sock)
+		peer.Stop()
 	}()
-	peer.ws.SetReadLimit(maxMessageSize)
-	peer.ws.SetReadDeadline(time.Now().Add(pongWait))
-	peer.ws.SetPongHandler(func(string) error { peer.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	peer.conn.SetReadLimit(maxMessageSize)
+	peer.conn.SetReadDeadline(time.Now().Add(pongWait))
+	peer.conn.SetPongHandler(func(string) error { peer.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		opCode, message, err := peer.ws.ReadMessage()
+		opCode, message, err := peer.conn.ReadMessage()
 		if err != nil || opCode != websocket.TextMessage {
 			break
 		}
@@ -64,87 +80,88 @@ func (peer *PeerConnection) readConnectionPump(sock *NetworkWebSocket) {
 			fromProxy: false,
 		}
 
-		sock.broadcastBuffer <- wsBroadcast
+		peer.channel.broadcastBuffer <- wsBroadcast
 	}
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (peer *PeerConnection) writeConnectionPump(sock *NetworkWebSocket) {
+func (peer *PeerConnection) writeConnectionPump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		peer.removeConnection(sock)
+		peer.Stop()
 	}()
 	for {
 		select {
 		case <-ticker.C:
-			peer.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			peer.ws.WriteMessage(websocket.PingMessage, []byte{})
+			peer.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			peer.conn.WriteMessage(websocket.PingMessage, []byte{})
 		}
 	}
 }
 
 // Set up a new NetworkWebSocket connection instance
-func (peer *PeerConnection) addConnection(sock *NetworkWebSocket) {
+func (peer *PeerConnection) addConnection() {
 	// Add this websocket instance to Named WebSocket broadcast list
-	sock.peers = append(sock.peers, peer)
+	peer.channel.peers = append(peer.channel.peers, peer)
 
 	// Inform all control connections that we now own this peer connection
-	for _, control := range sock.controllers {
+	for _, control := range peer.channel.controllers {
 		// don't notify controller if its id matches the peer's id
-		if control.id != peer.id {
-			control.send("connect", control.id, peer.id, "")
+		if control.base.id != peer.id {
+			control.send("connect", control.base.id, peer.id, "")
 		}
 	}
 
 	// Inform all proxy connections that we now own this peer connection
-	for _, proxy := range sock.proxies {
+	for _, proxy := range peer.channel.proxies {
 		if proxy.writeable {
-			proxy.send("connect", proxy.id, peer.id, "")
+			proxy.send("connect", proxy.base.id, peer.id, "")
 		}
 	}
-
-	// Start connection read/write pumps
-	go peer.writeConnectionPump(sock)
-	go peer.readConnectionPump(sock)
 }
 
 // Tear down an existing NetworkWebSocket connection instance
-func (peer *PeerConnection) removeConnection(sock *NetworkWebSocket) {
-	for i, conn := range sock.peers {
+func (peer *PeerConnection) removeConnection() {
+	for i, conn := range peer.channel.peers {
 		if conn.id == peer.id {
-			sock.peers = append(sock.peers[:i], sock.peers[i+1:]...)
+			peer.channel.peers = append(peer.channel.peers[:i], peer.channel.peers[i+1:]...)
 			break
 		}
 	}
 
-	peer.ws.Close()
+	peer.conn.Close()
 
 	// Find associated control connection and close also
-	for _, control := range sock.controllers {
-		if control.id == peer.id {
-			control.removeConnection(sock)
+	for _, control := range peer.channel.controllers {
+		if control.base.id == peer.id {
+			control.Stop()
 			break
 		}
 	}
 
 	// Inform all control connections that we no longer own this peer connection
-	for _, control := range sock.controllers {
+	for _, control := range peer.channel.controllers {
 		// don't notify controller if its id matches the peer's id
-		if control.id != peer.id {
-			control.send("disconnect", control.id, peer.id, "")
+		if control.base.id != peer.id {
+			control.send("disconnect", control.base.id, peer.id, "")
 		}
 	}
 
 	// Inform all proxy connections that we no longer own this peer connection
-	for _, proxy := range sock.proxies {
+	for _, proxy := range peer.channel.proxies {
 		if proxy.writeable {
-			proxy.send("disconnect", proxy.id, peer.id, "")
+			proxy.send("disconnect", proxy.base.id, peer.id, "")
 		}
 	}
 
 	// If no more local peers are connected then remove the current Named Web Socket service
-	if len(sock.peers) == 0 {
-		sock.close()
+	if len(peer.channel.peers) == 0 {
+		peer.channel.Stop()
 	}
+}
+
+func (peer *PeerConnection) Stop() {
+	// Remove references to this control connection from channel
+	peer.removeConnection()
 }

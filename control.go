@@ -10,7 +10,7 @@ import (
 
 type ControlConnection struct {
 	// Inherit attributes from PeerConnection struct
-	PeerConnection
+	base PeerConnection
 }
 
 type ControlWireMessage struct {
@@ -25,15 +25,28 @@ type ControlWireMessage struct {
 	Payload string `json:"data,omitempty"`
 }
 
-func NewControlConnection(id string, socket *websocket.Conn) *ControlConnection {
+func NewControlConnection(channel *NetworkWebSocket, id string, conn *websocket.Conn) *ControlConnection {
 	controlConn := &ControlConnection{
-		PeerConnection: PeerConnection{
-			id: id,
-			ws: socket,
+		base: PeerConnection{
+			id:      id,
+			channel: channel,
+			conn:    conn,
 		},
 	}
 
+	// Start websocket read/write pumps
+	controlConn.Start()
+
 	return controlConn
+}
+
+func (control *ControlConnection) Start() {
+	// Start connection read/write pumps
+	go control.writeConnectionPump()
+	go control.readConnectionPump()
+
+	// Add reference to this control connection to channel
+	control.addConnection()
 }
 
 // Send a message to the target websocket connection
@@ -50,20 +63,20 @@ func (control *ControlConnection) send(action string, source string, target stri
 		return
 	}
 
-	control.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	control.ws.WriteMessage(websocket.TextMessage, messagePayload)
+	control.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	control.base.conn.WriteMessage(websocket.TextMessage, messagePayload)
 }
 
 // readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (control *ControlConnection) readConnectionPump(sock *NetworkWebSocket) {
+func (control *ControlConnection) readConnectionPump() {
 	defer func() {
-		control.removeConnection(sock)
+		control.Stop()
 	}()
-	control.ws.SetReadLimit(maxMessageSize)
-	control.ws.SetReadDeadline(time.Now().Add(pongWait))
-	control.ws.SetPongHandler(func(string) error { control.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	control.base.conn.SetReadLimit(maxMessageSize)
+	control.base.conn.SetReadDeadline(time.Now().Add(pongWait))
+	control.base.conn.SetPongHandler(func(string) error { control.base.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		opCode, buf, err := control.ws.ReadMessage()
+		opCode, buf, err := control.base.conn.ReadMessage()
 		if err != nil || opCode != websocket.TextMessage {
 			break
 		}
@@ -80,9 +93,9 @@ func (control *ControlConnection) readConnectionPump(sock *NetworkWebSocket) {
 			messageSent := false
 
 			// Relay message to control channel that matches target
-			for _, _control := range sock.controllers {
-				if _control.id == message.Target {
-					_control.send("message", control.id, message.Target, message.Payload)
+			for _, _control := range control.base.channel.controllers {
+				if _control.base.id == message.Target {
+					_control.send("message", control.base.id, message.Target, message.Payload)
 					messageSent = true
 					break
 				}
@@ -90,9 +103,9 @@ func (control *ControlConnection) readConnectionPump(sock *NetworkWebSocket) {
 
 			if !messageSent {
 				// Hunt for target in known proxies
-				for _, proxy := range sock.proxies {
-					if proxy.peers[message.Target] {
-						proxy.send("directmessage", control.id, message.Target, message.Payload)
+				for _, proxy := range control.base.channel.proxies {
+					if proxy.peerIds[message.Target] {
+						proxy.send("directmessage", control.base.id, message.Target, message.Payload)
 						messageSent = true
 						break
 					}
@@ -109,53 +122,54 @@ func (control *ControlConnection) readConnectionPump(sock *NetworkWebSocket) {
 }
 
 // writeConnectionPump keeps an individual websocket connection alive
-func (control *ControlConnection) writeConnectionPump(sock *NetworkWebSocket) {
+func (control *ControlConnection) writeConnectionPump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		control.removeConnection(sock)
+		control.Stop()
 	}()
 	for {
 		select {
 		case <-ticker.C:
-			control.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			control.ws.WriteMessage(websocket.PingMessage, []byte{})
+			control.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			control.base.conn.WriteMessage(websocket.PingMessage, []byte{})
 		}
 	}
 }
 
 // Set up a new NetworkWebSocket control connection instance
-func (control *ControlConnection) addConnection(sock *NetworkWebSocket) {
-	sock.controllers = append(sock.controllers, control)
-
-	// Start connection read/write pumps
-	go control.writeConnectionPump(sock)
-	go control.readConnectionPump(sock)
+func (control *ControlConnection) addConnection() {
+	control.base.channel.controllers = append(control.base.channel.controllers, control)
 
 	// Inform this control point of all the peer connections we own
-	for _, peer := range sock.peers {
+	for _, peer := range control.base.channel.peers {
 		// don't notify controller if its id matches the peer's id
-		if control.id != peer.id {
-			control.send("connect", control.id, peer.id, "")
+		if control.base.id != peer.id {
+			control.send("connect", control.base.id, peer.id, "")
 		}
 	}
 
 	// Inform this control point of all the peer connections connected proxies own
-	for _, proxy := range sock.proxies {
-		for peerId, _ := range proxy.peers {
-			control.send("connect", control.id, peerId, "")
+	for _, proxy := range control.base.channel.proxies {
+		for peerId, _ := range proxy.peerIds {
+			control.send("connect", control.base.id, peerId, "")
 		}
 	}
 }
 
 // Tear down an existing NetworkWebSocket control connection instance
-func (control *ControlConnection) removeConnection(sock *NetworkWebSocket) {
-	for i, conn := range sock.controllers {
-		if conn.id == control.id {
-			sock.controllers = append(sock.controllers[:i], sock.controllers[i+1:]...)
+func (control *ControlConnection) removeConnection() {
+	for i, conn := range control.base.channel.controllers {
+		if control.base.id == conn.base.id {
+			control.base.channel.controllers = append(control.base.channel.controllers[:i], control.base.channel.controllers[i+1:]...)
 			break
 		}
 	}
 
-	control.ws.Close()
+	control.base.conn.Close()
+}
+
+func (control *ControlConnection) Stop() {
+	// Remove reference to this control connection from channel
+	control.removeConnection()
 }
