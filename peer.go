@@ -95,7 +95,9 @@ func (peer *PeerConnection) writeConnectionPump() {
 		select {
 		case <-ticker.C:
 			peer.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			peer.conn.WriteMessage(websocket.PingMessage, []byte{})
+			if err := peer.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				break
+			}
 		}
 	}
 }

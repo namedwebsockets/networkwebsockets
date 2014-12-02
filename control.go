@@ -132,7 +132,9 @@ func (control *ControlConnection) writeConnectionPump() {
 		select {
 		case <-ticker.C:
 			control.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			control.base.conn.WriteMessage(websocket.PingMessage, []byte{})
+			if err := control.base.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				break
+			}
 		}
 	}
 }
