@@ -15,19 +15,19 @@ import (
 )
 
 const (
-	network_ipv4mdns = "224.0.0.251"
-	network_ipv6mdns = "ff02::fb"
-	network_mdnsPort = 5353
+	ipv4mdns = "224.0.0.251"
+	ipv6mdns = "ff02::fb"
+	mdnsPort = 5353
 )
 
 var (
 	network_ipv4Addr = &net.UDPAddr{
-		IP:   net.ParseIP(network_ipv4mdns),
-		Port: network_mdnsPort,
+		IP:   net.ParseIP(ipv4mdns),
+		Port: mdnsPort,
 	}
 	network_ipv6Addr = &net.UDPAddr{
-		IP:   net.ParseIP(network_ipv6mdns),
-		Port: network_mdnsPort,
+		IP:   net.ParseIP(ipv6mdns),
+		Port: mdnsPort,
 	}
 )
 
