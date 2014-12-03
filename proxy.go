@@ -169,7 +169,7 @@ func (proxy *ProxyConnection) writeConnectionPump() {
 		case <-ticker.C:
 			proxy.base.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := proxy.base.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				break
+				return
 			}
 		}
 	}
