@@ -16,7 +16,7 @@ import (
 const (
 	ipv4mdns = "224.0.0.251"
 	ipv6mdns = "ff02::fb"
-	mdnsPort = 5353
+	mdnsPort = 5406 // operate on our own multicast port (standard mDNS port is 5353)
 )
 
 var (
