@@ -246,7 +246,7 @@ func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWrit
 	}
 
 	// Resolve to web socket connection channel
-	sock := service.getServiceByName(serviceName)
+	sock := service.GetChannelByName(serviceName)
 
 	if sock == nil {
 		sock = NewNetworkWebSocket(service, serviceName, isControl)
@@ -294,7 +294,7 @@ func (service *NetworkWebSocket_Service) serveProxyWSCreator(w http.ResponseWrit
 }
 
 // Check whether we know the given service name
-func (service *NetworkWebSocket_Service) getServiceByName(serviceName string) *NetworkWebSocket {
+func (service *NetworkWebSocket_Service) GetChannelByName(serviceName string) *NetworkWebSocket {
 	for _, sock := range service.Channels {
 		if sock.serviceName == serviceName {
 			return sock
