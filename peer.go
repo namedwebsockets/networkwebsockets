@@ -40,6 +40,40 @@ func (peer *PeerConnection) Start() {
 	peer.addConnection()
 }
 
+func (peer *PeerConnection) SendBroadcast(data string) {
+	wsBroadcast := &NetworkWebSocketWireMessage{
+		Action:    "broadcast",
+		Source:    peer.id,
+		Target:    "", // target all connections
+		Payload:   data,
+		fromProxy: false,
+	}
+	peer.channel.broadcastBuffer <- wsBroadcast
+}
+
+func (peer *PeerConnection) SendMessage(data string, targetId string) {
+	if targetId == "" {
+		return
+	}
+
+	// Relay message to peer channel that matches target
+	for _, _peer := range peer.channel.peers {
+		if _peer.id == targetId {
+			_peer.send("message", peer.id, targetId, data)
+			return
+		}
+	}
+
+	// If we have not delivered the message yet then hunt for a
+	// proxy that owns target peer id in known proxies
+	for _, proxy := range peer.channel.proxies {
+		if proxy.peerIds[targetId] {
+			proxy.send("message", peer.id, targetId, data)
+			return
+		}
+	}
+}
+
 // Send a message to the target websocket connection
 func (peer *PeerConnection) send(action string, source string, target string, payload string) {
 	// Construct proxy wire message
@@ -87,38 +121,12 @@ func (peer *PeerConnection) readConnectionPump() {
 
 		case "broadcast":
 
-			wsBroadcast := &NetworkWebSocketWireMessage{
-				Action:    "broadcast",
-				Source:    peer.id,
-				Target:    "", // target all connections
-				Payload:   string(message.Payload),
-				fromProxy: false,
-			}
-			peer.channel.broadcastBuffer <- wsBroadcast
+			peer.SendBroadcast(string(message.Payload))
 
 		case "message":
 
-			messageSent := false
+			peer.SendMessage(string(message.Payload), message.Target)
 
-			// Relay message to peer channel that matches target
-			for _, _peer := range peer.channel.peers {
-				if _peer.id == message.Target {
-					_peer.send("message", peer.id, message.Target, message.Payload)
-					messageSent = true
-					break
-				}
-			}
-
-			if !messageSent {
-				// Hunt for proxy that owns target peer id in known proxies
-				for _, proxy := range peer.channel.proxies {
-					if proxy.peerIds[message.Target] {
-						proxy.send("message", peer.id, message.Target, message.Payload)
-						messageSent = true
-						break
-					}
-				}
-			}
 		}
 
 	}
