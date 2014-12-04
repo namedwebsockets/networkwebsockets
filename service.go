@@ -17,27 +17,21 @@ import (
 )
 
 var (
-	// Regular expression matchers
-
-	serviceNameRegexStr = "[A-Za-z0-9/\\+=\\*\\._-]{1,255}"
-
-	peerIdRegexStr = "[A-Za-z0-9]{4,255}"
-
-	isValidLocalRequest = regexp.MustCompile(fmt.Sprintf("^((/control)?/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
-
-	isValidControlRequest = regexp.MustCompile(fmt.Sprintf("^(/control/network/%s/%s)$", serviceNameRegexStr, peerIdRegexStr))
-
-	isValidProxyRequest = regexp.MustCompile(fmt.Sprintf("^/%s$", serviceNameRegexStr))
-
-	isValidServiceName = regexp.MustCompile(fmt.Sprintf("^%s$", serviceNameRegexStr))
+	// Proxy path matchers
+	serviceNameRegexStr  = "[A-Za-z0-9\\+=\\*\\._-]{1,255}"
+	isValidCreateRequest = regexp.MustCompile(fmt.Sprintf("^/network/%s$", serviceNameRegexStr))
+	isValidProxyRequest  = regexp.MustCompile(fmt.Sprintf("^/%s$", serviceNameRegexStr))
 
 	// TLS-SRP configuration components
-
-	// We deliberately only use a weak salt because we don't persistently store TLS-SRP credential data
-	Salt = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
-
+	Salt       = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 	serviceTab = CredentialsStore(map[string]string{})
 )
+
+// Generate a new random identifier
+func GenerateId() string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	return fmt.Sprintf("%d", rand.Int())
+}
 
 type NetworkWebSocket_Service struct {
 	Host string
@@ -104,10 +98,7 @@ func (service *NetworkWebSocket_Service) StartHTTPServer() {
 	serveMux.HandleFunc("/", service.serveConsoleTemplate)
 
 	// Serve network web socket creation endpoints for localhost clients
-	serveMux.HandleFunc("/network/", service.serveLocalWSCreator)
-
-	// Serve network web socket control endpoints for localhost clients
-	serveMux.HandleFunc("/control/", service.serveLocalWSCreator)
+	serveMux.HandleFunc("/network/", service.serveWSCreatorRequest)
 
 	// Listen and on loopback address + port
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
@@ -125,7 +116,7 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 	serveMux := http.NewServeMux()
 
 	// Serve secure network web socket proxy endpoints for network clients
-	serveMux.HandleFunc("/", service.serveProxyWSCreator)
+	serveMux.HandleFunc("/", service.serveWSProxyRequest)
 
 	// Generate random server salt for use in TLS-SRP data storage
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -211,7 +202,7 @@ func (service *NetworkWebSocket_Service) serveConsoleTemplate(w http.ResponseWri
 	t.Execute(w, service.Port)
 }
 
-func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWriter, r *http.Request) {
+func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {
 	// Only allow access from localhost to all services
 	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
 		http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
@@ -223,7 +214,7 @@ func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWrit
 		return
 	}
 
-	if isValidRequest := isValidLocalRequest.MatchString(r.URL.Path); !isValidRequest {
+	if isValidRequest := isValidCreateRequest.MatchString(r.URL.Path); !isValidRequest {
 		http.Error(w, "Not Found", 404)
 		return
 	}
@@ -233,34 +224,19 @@ func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWrit
 		return
 	}
 
-	isControl := isValidControlRequest.MatchString(r.URL.Path)
+	serviceName := strings.TrimPrefix(r.URL.Path, "/network/")
 
-	pathParts := strings.Split(r.URL.Path, "/")
-
-	peerId := pathParts[len(pathParts)-1]
-	serviceName := pathParts[len(pathParts)-2]
-
-	if isValid := isValidServiceName.MatchString(serviceName); !isValid {
-		http.Error(w, "Not Found", 404)
-		return
-	}
-
-	// Resolve to web socket connection channel
+	// Resolve to network web socket channel
 	sock := service.GetChannelByName(serviceName)
-
 	if sock == nil {
-		sock = NewNetworkWebSocket(service, serviceName, isControl)
+		sock = NewNetworkWebSocket(service, serviceName)
 	}
 
-	// Handle websocket connection
-	if isControl {
-		sock.serveControl(w, r, peerId)
-	} else {
-		sock.servePeer(w, r, peerId)
-	}
+	// Serve network web socket channel peer
+	sock.ServePeer(w, r)
 }
 
-func (service *NetworkWebSocket_Service) serveProxyWSCreator(w http.ResponseWriter, r *http.Request) {
+func (service *NetworkWebSocket_Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
@@ -280,11 +256,7 @@ func (service *NetworkWebSocket_Service) serveProxyWSCreator(w http.ResponseWrit
 	// Resolve servicePath to an active named websocket service
 	for _, sock := range service.Channels {
 		if sock.proxyPath == r.URL.Path {
-			// Generate a new id for this proxy connection
-			rand.Seed(time.Now().UTC().UnixNano())
-			peerId := fmt.Sprintf("%d", rand.Int())
-
-			sock.serveProxy(w, r, peerId)
+			sock.ServeProxy(w, r)
 			return
 		}
 	}

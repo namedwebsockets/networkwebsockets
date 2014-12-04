@@ -114,75 +114,78 @@ With both broadcast and direct messaging capabilities it is possible to build ad
 
 Devices and services running on the local machine can register Network Web Sockets without needing to use the JavaScript API. Thus, we can connect up other applications and devices sitting in the local network such as TVs, Set-Top Boxes, Fridges, Home Automation Systems (assuming they run their own Network Web Socket Proxy client also).
 
-To create a new _broadcast_ Network Web Socket connection to a channel from anywhere on the local machine you can establish a new Web Socket connection to:
+To create a new Network Web Socket connection to a channel from anywhere _on the local machine_ (i.e. to become a 'channel peer') you can establish a Web Socket connection to a running Network Web Socket Proxy at the following URL:
 
 ```
-ws://localhost:<port>/network/<channelName>/<peerId>
+ws://localhost:<port>/network/<channelName>
 ```
 
 where:
 
 * `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
 * `channelName` is the name of the channel you want to create, and;
-* `peerId` is a new random id to identify your new peer on the network.
 
-This websocket connection will act as a broadcast channel between you and all other matching channel peers (i.e. other Network Web Socket connections using the same `<channelName>`) across the local network.
+Messages sent and received on this Web Socket connection have a well-defined data format.
 
-To be notified when peers connect and disconnect from this channel, and to send direct messages to other channel peers, you need to establish a 'control' Web Socket connection alongside the 'broadcast' Web Socket connection described above.
+This Web Socket connection will notify you when channel peers connect and disconnect from `<channelName>` and when broadcast or direct messages are sent to you from other connected channel peers. This Web Socket connection can also be used to send broadcast or direct messages toward all other connected channel peers.
 
-You can listen for channel _control_ messages by establishing a new Web Socket connection to:
-
-```
-ws://localhost:<port>/control/network/<channelName>/<peerId>
-```
-
-where:
-
-* `port` is the port on which your Network Web Socket Proxy is running (by default, `9009`),
-* `channelName` is the name of the channel you want to receive notifications for, and;
-* `peerId` is the *same* id value you used to establish a broadcast Web Socket connection to the specified _channel name_ above.
-
-Messages sent and received on a control channel have a well-defined message format.
-
-When a new channel peer connects to `<channelName>` on the network a new message is _sent_ to this Web Socket connection as follows:
+When a new channel peer connects to `<channelName>` on the network a new message is sent to your connection as follows:
 
 ```javascript
 {
   action: "connect", // a new channel peer has connected to <channelName>
-  source: "<proxyId>", // the proxy connection to which this connected peer belongs
+  source: "<you>", // your channel peer's id
   target: "<newPeerId>" // the unique id of the new channel peer connection
 }
 ```
 
-Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to this control connection as follows:
+Similarly when a channel peer disconnects from `<channelName>` on the network a new message is sent to your connection as follows:
 
 ```javascript
 {
   action: "disconnect", // an existing channel peer has disconnected from <channelName>
-  source: "<proxyId>", // the proxy connection to which this disconnected peer belonged
+  source: "<you>", // your channel peer's id
   target: "<existingPeerId>" // the unique id of the existing channel peer connection
 }
 ```
 
-When receiving a _direct message_ from another channel peer, that has bypassed the broadcast channel, it is sent to you over this control connection as follows:
+To send a _broadcast message_ to all other connected channel peers you can send it over your connection as follows:
 
 ```javascript
 {
-  action: "message", // an existing channel peer has disconnected from <channelName>
-  source: "<sender>", // the id of the channel peer that sent you this direct message
-  target: "<you>" // your channel peer's id
-  data: "<data>" // the data sent to you by <sender>
+  action: "broadcast", // this is a sent broadcast message
+  data: "<data>" // the data you want to send to all other channel peers
 }
 ```
 
-To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send it over this control connection as follows:
+When receiving a _broadcast message_ from another connected channel peer it is sent to you over your connection as follows:
 
 ```javascript
 {
-  action: "message", // an existing channel peer has disconnected from <channelName>
-  // 'source', if set, is ignored and will be set by the proxy to your channel peer's id
-  target: "<recipient>" // the id of an existing channel peer you want to send a direct message to
+  action: "broadcast", // this is a received broadcast message
+  source: "<peerId>", // the sending channel peer's id
+  data: "<data>" // the data you want to send to all other channel peers
+}
+```
+
+To send a _direct message_ to another channel peer, bypassing the broadcast channel, you can send it over your connection as follows:
+
+```javascript
+{
+  action: "message", // this is a sent direct message
+  target: "<recipient>", // the id of an existing channel peer you want to send a direct message to
   data: "<data>" // the data you want to send to <recipient>
+}
+```
+
+When receiving a _direct message_ from another channel peer, that has bypassed the broadcast channel, it is sent to you over your connection as follows:
+
+```javascript
+{
+  action: "message", // this is a received direct message
+  source: "<sender>", // the id of the channel peer that sent you this direct message
+  target: "<you>", // your channel peer's id
+  data: "<data>" // the data sent to you by <sender>
 }
 ```
 

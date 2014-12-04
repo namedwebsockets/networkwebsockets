@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"strings"
 	"time"
@@ -54,8 +53,7 @@ func NewDiscoveryService(name, hash, path string, port int) *DiscoveryService {
 }
 
 func (dc *DiscoveryService) Register(domain string) {
-	rand.Seed(time.Now().UTC().UnixNano())
-	dnssdServiceId := fmt.Sprintf("%d", rand.Int())
+	dnssdServiceId := GenerateId()
 
 	s := &mdns.MDNSService{
 		Instance: dnssdServiceId,

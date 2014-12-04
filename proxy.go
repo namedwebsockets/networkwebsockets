@@ -23,23 +23,10 @@ type ProxyConnection struct {
 	writeable bool
 }
 
-type ProxyWireMessage struct {
-	// Proxy message type: "connect", "disconnect", "message", "directmessage"
-	Action string `json:"action"`
-
-	Source string `json:"source,omitempty"`
-
-	// Recipients' id list (empty string === send to all peers)
-	Target string `json:"target,omitempty"`
-
-	// Raw message contents
-	Payload string `json:"data,omitempty"`
-}
-
-func NewProxyConnection(channel *NetworkWebSocket, id string, conn *websocket.Conn, isWriteable bool) *ProxyConnection {
+func NewProxyConnection(channel *NetworkWebSocket, conn *websocket.Conn, isWriteable bool) *ProxyConnection {
 	proxyConn := &ProxyConnection{
 		base: PeerConnection{
-			id:      id,
+			id:      GenerateId(),
 			channel: channel,
 			conn:    conn,
 		},
@@ -66,7 +53,7 @@ func (proxy *ProxyConnection) Start() {
 // Send a message to the target websocket connection
 func (proxy *ProxyConnection) send(action string, source string, target string, payload string) {
 	// Construct proxy wire message
-	m := ProxyWireMessage{
+	m := NetworkWebSocketWireMessage{
 		Action:  action,
 		Source:  source,
 		Target:  target,
@@ -99,51 +86,51 @@ func (proxy *ProxyConnection) readConnectionPump() {
 			break
 		}
 
-		var message ProxyWireMessage
+		var message NetworkWebSocketWireMessage
 		if err = json.Unmarshal(buf, &message); err != nil {
 			continue // ignore unrecognized message format
 		}
 
 		switch message.Action {
-
 		case "connect":
 
 			proxy.peerIds[message.Target] = true
 
-			// Inform all control connections that this proxy owns this peer connection
-			for _, control := range proxy.base.channel.controllers {
-				control.send("connect", control.base.id, message.Target, "")
+			// Inform all local peer connections that this proxy owns this peer connection
+			for _, peer := range proxy.base.channel.peers {
+				peer.send("connect", peer.id, message.Target, "")
 			}
 
 		case "disconnect":
 
 			delete(proxy.peerIds, message.Target)
 
-			// Inform all control connections that this proxy no longer owns this peer connection
-			for _, control := range proxy.base.channel.controllers {
-				control.send("disconnect", control.base.id, message.Target, "")
+			// Inform all local peer connections that this proxy no longer owns this peer connection
+			for _, peer := range proxy.base.channel.peers {
+				peer.send("disconnect", peer.id, message.Target, "")
 			}
 
-		case "message":
+		case "broadcast":
 
 			// broadcast message on to given target
-			wsBroadcast := &Message{
-				source:    message.Source,
-				target:    "", // target all connections
-				payload:   message.Payload,
+			wsBroadcast := &NetworkWebSocketWireMessage{
+				Action:    "broadcast",
+				Source:    message.Source,
+				Target:    "", // target all connections
+				Payload:   message.Payload,
 				fromProxy: true,
 			}
 
 			proxy.base.channel.broadcastBuffer <- wsBroadcast
 
-		case "directmessage":
+		case "message":
 
 			messageSent := false
 
-			// Relay message to control channel that matches target
-			for _, control := range proxy.base.channel.controllers {
-				if control.base.id == message.Target {
-					control.send("message", message.Source, message.Target, message.Payload)
+			// Relay message to channel peer that matches target
+			for _, peer := range proxy.base.channel.peers {
+				if peer.id == message.Target {
+					peer.send("message", message.Source, message.Target, message.Payload)
 					messageSent = true
 					break
 				}
@@ -152,7 +139,6 @@ func (proxy *ProxyConnection) readConnectionPump() {
 			if !messageSent {
 				fmt.Errorf("P2P message target could not be found. Not sent.")
 			}
-
 		}
 	}
 }
@@ -162,7 +148,6 @@ func (proxy *ProxyConnection) writeConnectionPump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		proxy.Stop()
 	}()
 	for {
 		select {
@@ -207,6 +192,6 @@ func (proxy *ProxyConnection) removeConnection() {
 }
 
 func (proxy *ProxyConnection) Stop() {
-	// Remove references to this control connection from channel
+	// Remove references to this proxy connection from channel
 	proxy.removeConnection()
 }

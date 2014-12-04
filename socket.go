@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -39,9 +38,6 @@ type NetworkWebSocket struct {
 
 	proxyPath string
 
-	// The current websocket connection control instances to this named websocket
-	controllers []*ControlConnection
-
 	// The current websocket connection instances to this named websocket
 	peers []*PeerConnection
 
@@ -49,7 +45,7 @@ type NetworkWebSocket struct {
 	proxies []*ProxyConnection
 
 	// Buffered channel of outbound service messages.
-	broadcastBuffer chan *Message
+	broadcastBuffer chan *NetworkWebSocketWireMessage
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryService *DiscoveryService
@@ -57,34 +53,41 @@ type NetworkWebSocket struct {
 	done chan int // blocks until .close() is called
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  8192,
-	WriteBufferSize: 8192,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // allow all cross-origin access
-	},
+// JSON structure to message sending
+type NetworkWebSocketWireMessage struct {
+	// Proxy message type: "connect", "disconnect", "message", "broadcast"
+	Action string `json:"action"`
+
+	Source string `json:"source,omitempty"`
+
+	Target string `json:"target,omitempty"`
+
+	// Message contents
+	Payload string `json:"data,omitempty"`
+
+	// Whether this message originated from a ProxyConnection object
+	fromProxy bool `json:"-"`
 }
 
 // Create a new NetworkWebSocket instance with a given service type
-func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, isControl bool) *NetworkWebSocket {
+func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string) *NetworkWebSocket {
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
-
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	sock := &NetworkWebSocket{
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
-		servicePath: fmt.Sprintf("/network/%s", serviceName),
-		proxyPath:   fmt.Sprintf("/%d", rand.Int()),
 
-		controllers:     make([]*ControlConnection, 0),
+		servicePath: fmt.Sprintf("/network/%s", serviceName),
+
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),
-		broadcastBuffer: make(chan *Message, 512),
+		broadcastBuffer: make(chan *NetworkWebSocketWireMessage, 512),
 
 		done: make(chan int),
 	}
+
+	sock.proxyPath = fmt.Sprintf("/%s", GenerateId())
 
 	go sock.messageDispatcher()
 
@@ -98,33 +101,30 @@ func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, 
 		delete(service.Channels, sock.servicePath)
 	}()
 
-	if !isControl {
+	// Add TLS-SRP credentials for access to this service to credentials store
+	// TODO isolate this per socket
+	serviceTab[sock.serviceHash] = sock.serviceName
 
-		// Add TLS-SRP credentials for access to this service to credentials store
-		// TODO isolate this per socket
-		serviceTab[sock.serviceHash] = sock.serviceName
+	go sock.advertise(service.ProxyPort)
 
-		go sock.advertise(service.ProxyPort)
+	if service.discoveryBrowser != nil {
 
-		if service.discoveryBrowser != nil {
-
-			// Attempt to resolve discovered unknown service hashes with this service name
-			recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
-			for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
-				if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
-					if _, dErr := sock.dialFromDNSRecord(cachedRecord); dErr != nil {
-						log.Printf("err: %v", dErr)
-					}
-				} else {
-					// Maintain as an unresolved entry in cache
-					recordsCache[cachedRecord.Hash_Base64] = cachedRecord
+		// Attempt to resolve discovered unknown service hashes with this service name
+		recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
+		for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
+			if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
+				if _, dErr := sock.dialFromDNSRecord(cachedRecord); dErr != nil {
+					log.Printf("err: %v", dErr)
 				}
+			} else {
+				// Maintain as an unresolved entry in cache
+				recordsCache[cachedRecord.Hash_Base64] = cachedRecord
 			}
-
-			// Replace unresolved DNS-SD service entries cache
-			service.discoveryBrowser.cachedDNSRecords = recordsCache
-
 		}
+
+		// Replace unresolved DNS-SD service entries cache
+		service.discoveryBrowser.cachedDNSRecords = recordsCache
+
 	}
 
 	return sock
@@ -139,7 +139,7 @@ func (sock *NetworkWebSocket) advertise(port int) {
 }
 
 // Set up a new web socket connection
-func (sock *NetworkWebSocket) servePeer(w http.ResponseWriter, r *http.Request, id string) {
+func (sock *NetworkWebSocket) ServePeer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -151,12 +151,12 @@ func (sock *NetworkWebSocket) servePeer(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	_ = NewPeerConnection(sock, id, ws)
+	_ = NewPeerConnection(sock, ws)
 
 }
 
 // Set up a new web socket connection
-func (sock *NetworkWebSocket) serveProxy(w http.ResponseWriter, r *http.Request, id string) {
+func (sock *NetworkWebSocket) ServeProxy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -174,23 +174,7 @@ func (sock *NetworkWebSocket) serveProxy(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	_ = NewProxyConnection(sock, id, ws, true)
-}
-
-// Set up a new web socket connection
-func (sock *NetworkWebSocket) serveControl(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-
-	ws, err := sock.upgradeToWebSocket(w, r)
-	if err != nil {
-		http.Error(w, "Bad Request", 400)
-		return
-	}
-
-	_ = NewControlConnection(sock, id, ws)
+	_ = NewProxyConnection(sock, ws, true)
 }
 
 func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
@@ -199,6 +183,14 @@ func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.
 	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
 		// Choose the first subprotocol requested in 'Sec-Websocket-Protocol' header
 		selectedSubprotocol = strings.Split(subprotocolsStr, ",")[0]
+	}
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  8192,
+		WriteBufferSize: 8192,
+		CheckOrigin: func(r *http.Request) bool {
+			return true // allow all cross-origin access
+		},
 	}
 
 	ws, err := upgrader.Upgrade(w, r, map[string][]string{
@@ -260,11 +252,7 @@ func (sock *NetworkWebSocket) dialFromDNSRecord(record *NetworkWebSocket_DNSReco
 
 		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
-		// Generate a new id for this proxy connection
-		rand.Seed(time.Now().UTC().UnixNano())
-		newPeerId := fmt.Sprintf("%d", rand.Int())
-
-		proxyConn := NewProxyConnection(sock, newPeerId, ws, false)
+		proxyConn := NewProxyConnection(sock, ws, false)
 		proxyConn.setHash_Base64(record.Hash_Base64)
 
 		return proxyConn, nil
@@ -293,20 +281,20 @@ func (sock *NetworkWebSocket) messageDispatcher() {
 
 // Broadcast a message to all peer connections for this NetworkWebSocket
 // instance (except to the src websocket connection)
-func (sock *NetworkWebSocket) localBroadcast(broadcast *Message) {
+func (sock *NetworkWebSocket) localBroadcast(broadcast *NetworkWebSocketWireMessage) {
 	// Write to peer connections
 	for _, peer := range sock.peers {
 		// don't send back to self
-		if peer.id == broadcast.source {
+		if peer.id == broadcast.Source {
 			continue
 		}
-		peer.send(broadcast.payload)
+		peer.send("broadcast", broadcast.Source, "", broadcast.Payload)
 	}
 }
 
 // Broadcast a message to all proxy connections for this NetworkWebSocket
 // instance (except to the src websocket connection)
-func (sock *NetworkWebSocket) remoteBroadcast(broadcast *Message) {
+func (sock *NetworkWebSocket) remoteBroadcast(broadcast *NetworkWebSocketWireMessage) {
 	// Only send to remote proxies if this message was not received from a proxy itself
 	if broadcast.fromProxy {
 		return
@@ -316,15 +304,15 @@ func (sock *NetworkWebSocket) remoteBroadcast(broadcast *Message) {
 	for _, proxy := range sock.proxies {
 		// don't send back to self
 		// only write to *writeable* proxy connections
-		if !proxy.writeable || proxy.base.id == broadcast.source {
+		if !proxy.writeable || proxy.base.id == broadcast.Source {
 			continue
 		}
-		proxy.send("message", broadcast.source, "", broadcast.payload)
+		proxy.send("broadcast", broadcast.Source, "", broadcast.Payload)
 	}
 }
 
 // Destroy this Network Web Socket service instance, close all
-// peer, control and proxy connections.
+// peer and proxy connections.
 func (sock *NetworkWebSocket) Stop() {
 	// Close discovery browser
 	if sock.discoveryService != nil {
@@ -333,10 +321,6 @@ func (sock *NetworkWebSocket) Stop() {
 
 	for _, peer := range sock.peers {
 		peer.Stop()
-	}
-
-	for _, control := range sock.controllers {
-		control.Stop()
 	}
 
 	for _, proxy := range sock.proxies {
