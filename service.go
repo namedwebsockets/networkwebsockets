@@ -240,14 +240,6 @@ func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWrit
 	peerId := pathParts[len(pathParts)-1]
 	serviceName := pathParts[len(pathParts)-2]
 
-	// Remove trailing peerId from service path
-	servicePath := fmt.Sprintf("%s", strings.Join(pathParts[0:len(pathParts)-1], "/"))
-
-	// Remove leading "/control" from service path if this is a control request
-	if isControl {
-		servicePath = fmt.Sprintf("/%s", strings.Join(pathParts[2:len(pathParts)-1], "/"))
-	}
-
 	if isValid := isValidServiceName.MatchString(serviceName); !isValid {
 		http.Error(w, "Not Found", 404)
 		return
@@ -257,14 +249,7 @@ func (service *NetworkWebSocket_Service) serveLocalWSCreator(w http.ResponseWrit
 	sock := service.getServiceByName(serviceName)
 
 	if sock == nil {
-		sock = NewNetworkWebSocket(service, serviceName, service.Port, isControl)
-		service.Channels[servicePath] = sock
-
-		// Terminate channel if it is closed
-		go func() {
-			<-sock.StopNotify()
-			delete(service.Channels, servicePath)
-		}()
+		sock = NewNetworkWebSocket(service, serviceName, isControl)
 	}
 
 	// Handle websocket connection

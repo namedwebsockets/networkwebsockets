@@ -66,7 +66,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // Create a new NetworkWebSocket instance with a given service type
-func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, port int, isControl bool) *NetworkWebSocket {
+func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, isControl bool) *NetworkWebSocket {
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
@@ -89,6 +89,14 @@ func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string, 
 	go sock.messageDispatcher()
 
 	log.Printf("New '%s' channel peer created.", sock.serviceName)
+
+	service.Channels[sock.servicePath] = sock
+
+	// Terminate channel when it is closed
+	go func() {
+		<-sock.stopNotify()
+		delete(service.Channels, sock.servicePath)
+	}()
 
 	if !isControl {
 
@@ -341,7 +349,7 @@ func (sock *NetworkWebSocket) Stop() {
 
 // StopNotify returns a channel that receives a empty integer
 // when the channel service is terminated.
-func (sock *NetworkWebSocket) StopNotify() <-chan int { return sock.done }
+func (sock *NetworkWebSocket) stopNotify() <-chan int { return sock.done }
 
 /** TLS-SRP Dialer interface **/
 
