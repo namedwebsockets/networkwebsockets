@@ -35,7 +35,7 @@ Once you have a Network Web Socket Proxy up and running on your local machine th
 
 #### Local HTTP Test Console
 
-Once a Network Web Socket Proxy is up and running, you can access a test console and play around with _Network Web Sockets_ at `http://localhost:9009/console`.
+Once a Network Web Socket Proxy is up and running, you can access a test console in your web browser and play around with _Network Web Sockets_ at `http://localhost:9009`.
 
 #### JavaScript Interfaces
 
@@ -117,7 +117,7 @@ Devices and services running on the local machine can register Network Web Socke
 To create a new Network Web Socket connection to a channel from anywhere _on the local machine_ (i.e. to become a 'channel peer') you can establish a Web Socket connection to a running Network Web Socket Proxy at the following URL:
 
 ```
-ws://localhost:<port>/network/<channelName>
+ws://localhost:<port>/<channelName>
 ```
 
 where:

@@ -19,7 +19,7 @@ import (
 var (
 	// Proxy path matchers
 	serviceNameRegexStr  = "[A-Za-z0-9\\+=\\*\\._-]{1,255}"
-	isValidCreateRequest = regexp.MustCompile(fmt.Sprintf("^/network/%s$", serviceNameRegexStr))
+	isValidCreateRequest = regexp.MustCompile(fmt.Sprintf("^/%s$", serviceNameRegexStr))
 	isValidProxyRequest  = regexp.MustCompile(fmt.Sprintf("^/%s$", serviceNameRegexStr))
 
 	// TLS-SRP configuration components
@@ -94,11 +94,8 @@ func (service *NetworkWebSocket_Service) StartHTTPServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
-	// Serve the test console
-	serveMux.HandleFunc("/", service.serveConsoleTemplate)
-
 	// Serve network web socket creation endpoints for localhost clients
-	serveMux.HandleFunc("/network/", service.serveWSCreatorRequest)
+	serveMux.HandleFunc("/", service.serveWSCreatorRequest)
 
 	// Listen and on loopback address + port
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
@@ -161,56 +158,38 @@ func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds in
 	}
 }
 
-func (service *NetworkWebSocket_Service) serveConsoleTemplate(w http.ResponseWriter, r *http.Request) {
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	// Only allow console access from localhost
-	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
-		http.Error(w, fmt.Sprintf("Named WebSockets Test Console is only accessible from the local machine (i.e http://localhost:%d/console)", service.Port), 403)
-		return
-	}
-
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-
-	if r.URL.Path == "/" {
-		fmt.Fprint(w, "<h2>A Named WebSockets Proxy is running on this host</h2>")
-		return
-	}
-
-	if r.URL.Path != "/console" {
-		http.Error(w, "Not Found", 404)
-		return
-	}
-
-	consoleHTML, err := Asset("_templates/console.html")
-	if err != nil {
-		// Asset was not found.
-		http.Error(w, "Not Found", 404)
-		return
-	}
-
-	t := template.Must(template.New("console").Parse(string(consoleHTML)))
-	if t == nil {
-		http.Error(w, "Internal Server Error", 501)
-		return
-	}
-
-	t.Execute(w, service.Port)
-}
-
 func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {
 	// Only allow access from localhost to all services
 	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
-		http.Error(w, fmt.Sprintf("This interface is only accessible from the local machine on this port (%d)", service.Port), 403)
+		http.Error(w, fmt.Sprintln("This interface is only accessible from the local machine"), 403)
 		return
 	}
 
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
+		return
+	}
+
+	serviceName := strings.TrimPrefix(r.URL.Path, "/")
+
+	// Serve console page for use in web browser if no service name has been requested
+	if serviceName == "" {
+
+		consoleHTML, err := Asset("_templates/console.html")
+		if err != nil {
+			// Asset was not found.
+			http.Error(w, "Not Found", 404)
+			return
+		}
+
+		t := template.Must(template.New("console").Parse(string(consoleHTML)))
+		if t == nil {
+			http.Error(w, "Internal Server Error", 501)
+			return
+		}
+
+		t.Execute(w, service.Port)
+
 		return
 	}
 
@@ -223,8 +202,6 @@ func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWr
 		http.Error(w, "Bad Request", 400)
 		return
 	}
-
-	serviceName := strings.TrimPrefix(r.URL.Path, "/network/")
 
 	// Resolve to network web socket channel
 	sock := service.GetChannelByName(serviceName)

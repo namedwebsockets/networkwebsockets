@@ -137,9 +137,9 @@ func TestConnection_SameOrigin_Broadcast(t *testing.T) {
 	time.Sleep(time.Second * 2) // sleep just long enough to let the all the Network Web Socket services start
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9023", "/network/testservice_C")
-	c2 := makeClient(t, "localhost:9023", "/network/testservice_C")
-	c3 := makeClient(t, "localhost:9023", "/network/testservice_C")
+	c1 := makeClient(t, "localhost:9023", "/testservice_C")
+	c2 := makeClient(t, "localhost:9023", "/testservice_C")
+	c3 := makeClient(t, "localhost:9023", "/testservice_C")
 
 	// Test connect control messages
 	c1.recvBasic(t, "connect")
@@ -190,10 +190,10 @@ func TestConnection_SameOrigin_DirectMessaging(t *testing.T) {
 	time.Sleep(time.Second * 2) // sleep just long enough to let the all the Network Web Socket services start
 
 	// Make named websocket test clients
-	c1 := makeClient(t, "localhost:9024", "/network/testservice_D")
-	c2 := makeClient(t, "localhost:9024", "/network/testservice_D")
-	c3 := makeClient(t, "localhost:9024", "/network/testservice_D")
-	c4 := makeClient(t, "localhost:9024", "/network/testservice_D")
+	c1 := makeClient(t, "localhost:9024", "/testservice_D")
+	c2 := makeClient(t, "localhost:9024", "/testservice_D")
+	c3 := makeClient(t, "localhost:9024", "/testservice_D")
+	c4 := makeClient(t, "localhost:9024", "/testservice_D")
 
 	// Test connect control messages
 	c1.recvBasic(t, "connect")

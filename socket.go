@@ -78,7 +78,7 @@ func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string) 
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
 
-		servicePath: fmt.Sprintf("/network/%s", serviceName),
+		servicePath: fmt.Sprintf("/%s", serviceName),
 
 		peers:           make([]*PeerConnection, 0),
 		proxies:         make([]*ProxyConnection, 0),

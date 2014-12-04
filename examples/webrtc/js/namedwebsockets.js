@@ -27,20 +27,13 @@ function toJson(data) {
 		return false;
 }
 
-function createServicePath(channelName) {
-	return "network/" + channelName;
-}
-
-
 var _NetworkWebSocket = function (channelName, subprotocols) {
 	if (!isValidServiceName(channelName)) {
 		throw "Invalid Service Name: " + channelName;
 	}
 
-	var path = createServicePath(channelName)
-
 	// *Actual* web socket connection to Network Web Socket proxy
-	var webSocket = new WebSocket(endpointUrlBase + path, subprotocols);
+	var webSocket = new WebSocket(endpointUrlBase + channelName, subprotocols);
 
 	// Root NetworkWebSocket object
 	var networkWebSocket = new P2PWebSocket(webSocket);
