@@ -78,14 +78,14 @@ func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service
 }
 
 func (service *NetworkWebSocket_Service) Start() <-chan int {
-	// Start mDNS/DNS-SD Network Web Socket discovery service
-	go service.StartDiscoveryBrowser(10)
-
 	// Start HTTP/Network Web Socket creation server
-	go service.StartHTTPServer()
+	service.StartHTTPServer()
 
 	// Start TLS-SRP Network Web Socket (wss) proxy server
-	go service.StartProxyServer()
+	service.StartProxyServer()
+
+	// Start mDNS/DNS-SD Network Web Socket discovery service
+	service.StartDiscoveryBrowser(10)
 
 	return service.StopNotify()
 }
@@ -105,7 +105,7 @@ func (service *NetworkWebSocket_Service) StartHTTPServer() {
 
 	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
 
-	http.Serve(listener, serveMux)
+	go http.Serve(listener, serveMux)
 }
 
 func (service *NetworkWebSocket_Service) StartProxyServer() {
@@ -145,7 +145,7 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 
 	log.Printf("Serving Named Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
 
-	http.Serve(tlsSrpListener, serveMux)
+	go http.Serve(tlsSrpListener, serveMux)
 }
 
 func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
@@ -153,9 +153,11 @@ func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds in
 
 	log.Printf("Listening for Named Web Socket services on the local network...")
 
-	for !service.discoveryBrowser.closed {
-		service.discoveryBrowser.Browse(service, timeoutSeconds)
-	}
+	go func() {
+		for !service.discoveryBrowser.closed {
+			service.discoveryBrowser.Browse(service, timeoutSeconds)
+		}
+	}()
 }
 
 func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {

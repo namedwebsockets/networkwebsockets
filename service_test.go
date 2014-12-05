@@ -134,7 +134,6 @@ func TestConnection_SameOrigin_Broadcast(t *testing.T) {
 	s1 := makeService("localhost", 9023)
 
 	_ = s1.Start()
-	time.Sleep(time.Second * 2) // sleep just long enough to let the all the Network Web Socket services start
 
 	// Make named websocket test clients
 	c1 := makeClient(t, "localhost:9023", "/testservice_C")
@@ -187,7 +186,6 @@ func TestConnection_SameOrigin_DirectMessaging(t *testing.T) {
 	s1 := makeService("localhost", 9024)
 
 	_ = s1.Start()
-	time.Sleep(time.Second * 2) // sleep just long enough to let the all the Network Web Socket services start
 
 	// Make named websocket test clients
 	c1 := makeClient(t, "localhost:9024", "/testservice_D")

@@ -2,15 +2,12 @@ package networkwebsockets
 
 import (
 	"testing"
-	"time"
 )
 
 func Test_ClientServer(t *testing.T) {
 
 	service := NewNetworkWebSocketService("localhost", 20100)
 	_ = service.Start()
-
-	time.Sleep(time.Second * 3) // sleep just long enough to let the all the Network Web Socket services start
 
 	// Set up Network Web Socket clients
 
