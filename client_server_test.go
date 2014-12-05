@@ -1,6 +1,7 @@
 package networkwebsockets
 
 import (
+	"log"
 	"testing"
 )
 
@@ -57,7 +58,7 @@ func checkMessage(t *testing.T, payload string, targetId string, sender *Network
 
 // TEST CASES
 
-func Test_ClientServer(t *testing.T) {
+func Test_SameProxyClients(t *testing.T) {
 
 	service := NewNetworkWebSocketService("localhost", 20100)
 	_ = service.Start()
@@ -79,6 +80,48 @@ func Test_ClientServer(t *testing.T) {
 	checkConnect(t, <-client2.Connect, client3Id)
 	checkConnect(t, <-client3.Connect, client1Id)
 	checkConnect(t, <-client3.Connect, client2Id)
+
+	// Test broadcast messaging
+	checkBroadcast(t, "hello world 1", client1, []*NetworkWebSocketClient{client2, client3})
+	checkBroadcast(t, "hello world 2", client2, []*NetworkWebSocketClient{client1, client3})
+	checkBroadcast(t, "hello world 3", client3, []*NetworkWebSocketClient{client1, client2})
+
+	// Test direct messaging
+	checkMessage(t, "direct message 1", client2Id, client1, client2)
+	checkMessage(t, "direct message 2", client3Id, client1, client3)
+	checkMessage(t, "direct message 3", client1Id, client2, client1)
+	checkMessage(t, "direct message 4", client3Id, client2, client3)
+	checkMessage(t, "direct message 5", client1Id, client3, client1)
+	checkMessage(t, "direct message 6", client2Id, client3, client2)
+}
+
+func Test_MultipleProxyClients(t *testing.T) {
+
+	service1 := NewNetworkWebSocketService("localhost", 20200)
+	_ = service1.Start()
+
+	service2 := NewNetworkWebSocketService("localhost", 20300)
+	_ = service2.Start()
+
+	// Create new Network Web Socket channel peers
+	client1 := createClient(t, "ws://localhost:20200/testService2")
+	client2 := createClient(t, "ws://localhost:20300/testService2")
+	client3 := createClient(t, "ws://localhost:20300/testService2")
+
+	// Test status messaging (+ store client ids for future tests)
+	client1Id := getClientId(client1)
+	client2Id := getClientId(client2)
+	client3Id := getClientId(client3)
+
+	log.Println("Waiting for Network Web Socket proxies to discover and connect to each other...")
+
+	// Test connect messaging
+	checkConnect(t, <-client1.Connect, client2Id)
+	checkConnect(t, <-client1.Connect, client3Id)
+	checkConnect(t, <-client2.Connect, client3Id)
+	checkConnect(t, <-client2.Connect, client1Id)
+	checkConnect(t, <-client3.Connect, client2Id)
+	checkConnect(t, <-client3.Connect, client1Id)
 
 	// Test broadcast messaging
 	checkBroadcast(t, "hello world 1", client1, []*NetworkWebSocketClient{client2, client3})
