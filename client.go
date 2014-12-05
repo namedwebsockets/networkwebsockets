@@ -13,22 +13,22 @@ type NetworkWebSocketClient struct {
 	conn *websocket.Conn
 
 	// incoming message channels
-	Status     chan *NetworkWebSocketWireMessage
-	Connect    chan *NetworkWebSocketWireMessage
-	Disconnect chan *NetworkWebSocketWireMessage
-	Message    chan *NetworkWebSocketWireMessage
-	Broadcast  chan *NetworkWebSocketWireMessage
+	Status     chan NetworkWebSocketWireMessage
+	Connect    chan NetworkWebSocketWireMessage
+	Disconnect chan NetworkWebSocketWireMessage
+	Message    chan NetworkWebSocketWireMessage
+	Broadcast  chan NetworkWebSocketWireMessage
 }
 
 func NewNetworkWebSocketClient(wsConn *websocket.Conn) *NetworkWebSocketClient {
 	client := &NetworkWebSocketClient{
 		conn: wsConn,
 
-		Status:     make(chan *NetworkWebSocketWireMessage),
-		Connect:    make(chan *NetworkWebSocketWireMessage),
-		Disconnect: make(chan *NetworkWebSocketWireMessage),
-		Message:    make(chan *NetworkWebSocketWireMessage),
-		Broadcast:  make(chan *NetworkWebSocketWireMessage),
+		Status:     make(chan NetworkWebSocketWireMessage, 255),
+		Connect:    make(chan NetworkWebSocketWireMessage, 255),
+		Disconnect: make(chan NetworkWebSocketWireMessage, 255),
+		Message:    make(chan NetworkWebSocketWireMessage, 255),
+		Broadcast:  make(chan NetworkWebSocketWireMessage, 255),
 	}
 
 	return client
@@ -44,6 +44,10 @@ func (client *NetworkWebSocketClient) SendMessageData(data string, targetId stri
 	}
 
 	client.send("message", targetId, data)
+}
+
+func (client *NetworkWebSocketClient) SendStatusRequest() {
+	client.send("status", "", "")
 }
 
 // Send a message to the target websocket connection
@@ -86,20 +90,15 @@ func (client *NetworkWebSocketClient) readPump() {
 
 		switch message.Action {
 		case "connect":
-			client.Connect <- &message
-			break
+			client.Connect <- message
 		case "disconnect":
-			client.Disconnect <- &message
-			break
+			client.Disconnect <- message
 		case "status":
-			client.Status <- &message
-			break
+			client.Status <- message
 		case "broadcast":
-			client.Broadcast <- &message
-			break
+			client.Broadcast <- message
 		case "message":
-			client.Message <- &message
-			break
+			client.Message <- message
 		}
 	}
 }
@@ -135,6 +134,7 @@ func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
 
 	client := NewNetworkWebSocketClient(wsConn)
 
+	// Start read/write pumps
 	go client.readPump()
 	go client.writePump()
 

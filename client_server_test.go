@@ -4,67 +4,92 @@ import (
 	"testing"
 )
 
+func createClient(t *testing.T, urlStr string) *NetworkWebSocketClient {
+	client, _, err := Dial(urlStr)
+	if err != nil {
+		t.Fatalf("Dial: ", err)
+	}
+	return client
+}
+
+func getClientId(client *NetworkWebSocketClient) string {
+	// Request client's peer id
+	client.SendStatusRequest()
+	// Wait for response
+	message := <-client.Status
+	// Return client's peer id
+	return message.Target
+}
+
+func checkConnect(t *testing.T, message NetworkWebSocketWireMessage, expectedTarget string) {
+	if message.Target != expectedTarget {
+		t.Fatalf("connect=%s, want %s", message.Target, expectedTarget)
+	}
+}
+
+func checkBroadcast(t *testing.T, payload string, sender *NetworkWebSocketClient, receivers []*NetworkWebSocketClient) {
+	// send broadcast message from sender
+	sender.SendBroadcastData(payload)
+
+	// check broadcast message arrived at all receivers
+	for _, receiver := range receivers {
+		message := <-receiver.Broadcast
+		if message.Payload != payload {
+			t.Fatalf("broadcast=%s, want %s", message.Payload, payload)
+		}
+	}
+}
+
+func checkMessage(t *testing.T, payload string, targetId string, sender *NetworkWebSocketClient, receiver *NetworkWebSocketClient) {
+	if targetId == "" {
+		t.Fatalf("No target identifier provided")
+	}
+
+	// send broadcast message from sender
+	sender.SendMessageData(payload, targetId)
+
+	// check broadcast message arrived at all receivers
+	message := <-receiver.Message
+	if message.Payload != payload {
+		t.Fatalf("message=%s, want %s", message.Payload, payload)
+	}
+}
+
+// TEST CASES
+
 func Test_ClientServer(t *testing.T) {
 
 	service := NewNetworkWebSocketService("localhost", 20100)
 	_ = service.Start()
 
-	// Set up Network Web Socket clients
+	// Create new Network Web Socket channel peers
+	client1 := createClient(t, "ws://localhost:20100/myexampleservice")
+	client2 := createClient(t, "ws://localhost:20100/myexampleservice")
+	client3 := createClient(t, "ws://localhost:20100/myexampleservice")
 
-	client1, _, err := Dial("ws://localhost:20100/myexampleservice")
-	if err != nil {
-		t.Fatalf("Dial1: ", err)
-	}
+	// Test status messaging (+ store client ids for future tests)
+	client1Id := getClientId(client1)
+	client2Id := getClientId(client2)
+	client3Id := getClientId(client3)
 
-	client2, _, err := Dial("ws://localhost:20100/myexampleservice")
-	if err != nil {
-		t.Fatalf("Dial2: ", err)
-	}
+	// Test connect messaging
+	checkConnect(t, <-client1.Connect, client2Id)
+	checkConnect(t, <-client1.Connect, client3Id)
+	checkConnect(t, <-client2.Connect, client1Id)
+	checkConnect(t, <-client2.Connect, client3Id)
+	checkConnect(t, <-client3.Connect, client1Id)
+	checkConnect(t, <-client3.Connect, client2Id)
 
-	client3, _, err := Dial("ws://localhost:20100/myexampleservice")
-	if err != nil {
-		t.Fatalf("Dial2: ", err)
-	}
+	// Test broadcast messaging
+	checkBroadcast(t, "hello world 1", client1, []*NetworkWebSocketClient{client2, client3})
+	checkBroadcast(t, "hello world 2", client2, []*NetworkWebSocketClient{client1, client3})
+	checkBroadcast(t, "hello world 3", client3, []*NetworkWebSocketClient{client1, client2})
 
-	// Wait for all peers to connect to each other before continuing test
-	<-client1.Connect
-	<-client1.Connect
-	<-client2.Connect
-	<-client2.Connect
-	<-client3.Connect
-	<-client3.Connect
-
-	// Send a broadcast message from client 1
-	client1.SendBroadcastData("hello world 1")
-
-	// Receive broadcast message from client 1
-	if message := <-client2.Broadcast; message.Payload != "hello world 1" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 1")
-	}
-	if message := <-client3.Broadcast; message.Payload != "hello world 1" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 1")
-	}
-
-	// Send a broadcast message from client 2
-	client2.SendBroadcastData("hello world 2")
-
-	// Receive broadcast message from client 2
-	if message := <-client1.Broadcast; message.Payload != "hello world 2" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 2")
-	}
-	if message := <-client3.Broadcast; message.Payload != "hello world 2" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 2")
-	}
-
-	// Send a broadcast message from client 3
-	client3.SendBroadcastData("hello world 3")
-
-	// Receive broadcast message from client 2
-	if message := <-client1.Broadcast; message.Payload != "hello world 3" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 3")
-	}
-	if message := <-client2.Broadcast; message.Payload != "hello world 3" {
-		t.Fatalf("broadcast=%s, want %s", message.Payload, "hello world 3")
-	}
-
+	// Test direct messaging
+	checkMessage(t, "direct message 1", client2Id, client1, client2)
+	checkMessage(t, "direct message 2", client3Id, client1, client3)
+	checkMessage(t, "direct message 3", client1Id, client2, client1)
+	checkMessage(t, "direct message 4", client3Id, client2, client3)
+	checkMessage(t, "direct message 5", client1Id, client3, client1)
+	checkMessage(t, "direct message 6", client2Id, client3, client2)
 }
