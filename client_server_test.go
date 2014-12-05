@@ -28,6 +28,12 @@ func checkConnect(t *testing.T, message NetworkWebSocketWireMessage, expectedTar
 	}
 }
 
+func checkDisconnect(t *testing.T, message NetworkWebSocketWireMessage, expectedTarget string) {
+	if message.Target != expectedTarget {
+		t.Fatalf("disconnect=%s, want %s", message.Target, expectedTarget)
+	}
+}
+
 func checkBroadcast(t *testing.T, payload string, sender *NetworkWebSocketClient, receivers []*NetworkWebSocketClient) {
 	// send broadcast message from sender
 	sender.SendBroadcastData(payload)
@@ -93,6 +99,16 @@ func Test_SameProxyClients(t *testing.T) {
 	checkMessage(t, "direct message 4", client3Id, client2, client3)
 	checkMessage(t, "direct message 5", client1Id, client3, client1)
 	checkMessage(t, "direct message 6", client2Id, client3, client2)
+
+	// Test disconnect messaging
+	client1.Close()
+	checkDisconnect(t, <-client2.Disconnect, client1Id)
+	checkDisconnect(t, <-client3.Disconnect, client1Id)
+
+	client2.Close()
+	checkDisconnect(t, <-client3.Disconnect, client2Id)
+
+	client3.Close()
 }
 
 func Test_MultipleProxyClients(t *testing.T) {
@@ -135,4 +151,14 @@ func Test_MultipleProxyClients(t *testing.T) {
 	checkMessage(t, "direct message 4", client3Id, client2, client3)
 	checkMessage(t, "direct message 5", client1Id, client3, client1)
 	checkMessage(t, "direct message 6", client2Id, client3, client2)
+
+	// Test disconnect messaging
+	client1.Close()
+	checkDisconnect(t, <-client2.Disconnect, client1Id)
+	checkDisconnect(t, <-client3.Disconnect, client1Id)
+
+	client2.Close()
+	checkDisconnect(t, <-client3.Disconnect, client2Id)
+
+	client3.Close()
 }
