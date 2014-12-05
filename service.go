@@ -149,11 +149,11 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 }
 
 func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
-	defer service.discoveryBrowser.Shutdown()
-
 	log.Printf("Listening for Named Web Socket services on the local network...")
 
 	go func() {
+		defer service.discoveryBrowser.Shutdown()
+
 		for !service.discoveryBrowser.closed {
 			service.discoveryBrowser.Browse(service, timeoutSeconds)
 		}
