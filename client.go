@@ -8,6 +8,29 @@ import (
 	"github.com/richtr/websocket"
 )
 
+func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
+	d := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+		ReadBufferSize:   8192,
+		WriteBufferSize:  8192,
+	}
+
+	wsConn, httpResp, err := d.Dial(urlStr, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client := NewNetworkWebSocketClient(wsConn)
+
+	// Start read/write pumps
+	go client.readPump()
+	go client.writePump()
+
+	return client, httpResp, nil
+}
+
+// NetworkWebSocketClient interface
+
 type NetworkWebSocketClient struct {
 	// Underlying websocket connection object
 	conn *websocket.Conn
@@ -120,23 +143,6 @@ func (client *NetworkWebSocketClient) writePump() {
 	}
 }
 
-func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
-	d := websocket.Dialer{
-		HandshakeTimeout: 10 * time.Second,
-		ReadBufferSize:   8192,
-		WriteBufferSize:  8192,
-	}
-
-	wsConn, httpResp, err := d.Dial(urlStr, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	client := NewNetworkWebSocketClient(wsConn)
-
-	// Start read/write pumps
-	go client.readPump()
-	go client.writePump()
-
-	return client, httpResp, nil
+func (client *NetworkWebSocketClient) Close() {
+	client.conn.Close()
 }
