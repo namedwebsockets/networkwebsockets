@@ -213,9 +213,10 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSe
 	// Run the mDNS/DNS-SD query
 	err := mdns.Query(params)
 
+	time.Sleep(interval) // sleep until next loop is scheduled
+
 	if err != nil {
 		log.Printf("Could not perform mDNS/DNS-SD query. %v", err)
-		time.Sleep(interval) // sleep until next loop is scheduled
 		return
 	}
 }
