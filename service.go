@@ -85,7 +85,7 @@ func (service *NetworkWebSocket_Service) Start() <-chan int {
 	service.StartProxyServer()
 
 	// Start mDNS/DNS-SD Network Web Socket discovery service
-	service.StartDiscoveryBrowser(10)
+	service.StartDiscoveryBrowser(10, 2)
 
 	return service.StopNotify()
 }
@@ -148,14 +148,14 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 	go http.Serve(tlsSrpListener, serveMux)
 }
 
-func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(timeoutSeconds int) {
+func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(intervalSeconds, timeoutSeconds int) {
 	log.Printf("Listening for Named Web Socket services on the local network...")
 
 	go func() {
 		defer service.discoveryBrowser.Shutdown()
 
 		for !service.discoveryBrowser.closed {
-			service.discoveryBrowser.Browse(service, timeoutSeconds)
+			service.discoveryBrowser.Browse(service, intervalSeconds, timeoutSeconds)
 		}
 	}()
 }
@@ -209,6 +209,9 @@ func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWr
 	sock := service.GetChannelByName(serviceName)
 	if sock == nil {
 		sock = NewNetworkWebSocket(service, serviceName)
+
+		// Trigger network service detection to speed up pairing (1)
+		go service.discoveryBrowser.Browse(service, 2, 2)
 	}
 
 	// Serve network web socket channel peer
@@ -236,6 +239,10 @@ func (service *NetworkWebSocket_Service) serveWSProxyRequest(w http.ResponseWrit
 	for _, sock := range service.Channels {
 		if sock.proxyPath == r.URL.Path {
 			sock.ServeProxy(w, r)
+
+			// Trigger network service detection to speed up pairing (2)
+			go service.discoveryBrowser.Browse(service, 2, 2)
+
 			return
 		}
 	}

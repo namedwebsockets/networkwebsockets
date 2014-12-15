@@ -102,26 +102,35 @@ func (dc *DiscoveryService) Shutdown() {
 type DiscoveryBrowser struct {
 	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
 	cachedDNSRecords map[string]*NetworkWebSocket_DNSRecord
-
+	inprogress bool
 	closed bool
 }
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {
 	discoveryBrowser := &DiscoveryBrowser{
 		cachedDNSRecords: make(map[string]*NetworkWebSocket_DNSRecord),
+		inprogress:       false,
 		closed:           false,
 	}
 
 	return discoveryBrowser
 }
 
-func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, timeoutSeconds int) {
+func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSeconds, timeoutSeconds int) {
+
+	// Don't run two browse processes at the same time
+	if ds.inprogress {
+		return
+	}
+
+	ds.inprogress = true
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
 	recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
+	interval := time.Duration(intervalSeconds) * time.Second
 
 	var targetIPv4 *net.UDPAddr
 	var targetIPv6 *net.UDPAddr
@@ -141,7 +150,8 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, timeoutSec
 
 	go func() {
 		complete := false
-		finish := time.After(timeout)
+		timeoutFinish := time.After(timeout)
+		intervalFinish := time.After(interval)
 
 		// Wait for responses until timeout
 		for !complete {
@@ -189,14 +199,15 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, timeoutSec
 					continue
 				}
 
-			case <-finish:
+			case <-timeoutFinish:
+				// Replace unresolved DNS records cache
+				ds.cachedDNSRecords = recordsCache
+
+				ds.inprogress = false
+			case <-intervalFinish:
 				complete = true
 			}
 		}
-
-		// Replace unresolved DNS records cache
-		ds.cachedDNSRecords = recordsCache
-
 	}()
 
 	// Run the mDNS/DNS-SD query
@@ -204,7 +215,7 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, timeoutSec
 
 	if err != nil {
 		log.Printf("Could not perform mDNS/DNS-SD query. %v", err)
-		time.Sleep(time.Second * time.Duration(timeoutSeconds)) // sleep until next loop is scheduled
+		time.Sleep(interval) // sleep until next loop is scheduled
 		return
 	}
 }
