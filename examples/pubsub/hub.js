@@ -14,8 +14,8 @@ var NamedWS_PubSubHub = function(namedWebSocketObj) {
 	this.ws.addEventListener("open", function() {
 		for(var msg in this.sendQueue) {
 			this.ws.send(this.sendQueue[msg]);
-			this.sendQueue = [];
 		}
+		this.sendQueue = [];
 	}.bind(this));
 
 	this.topicSubscriptions = [];
