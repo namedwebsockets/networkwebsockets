@@ -108,7 +108,7 @@ type DiscoveryBrowser struct {
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {
 	discoveryBrowser := &DiscoveryBrowser{
-		cachedDNSRecords: make(map[string]*NetworkWebSocket_DNSRecord),
+		cachedDNSRecords: make(map[string]*NetworkWebSocket_DNSRecord, 255),
 		inprogress:       false,
 		closed:           false,
 	}
@@ -127,7 +127,7 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSe
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
+	recordsCache := make(map[string]*NetworkWebSocket_DNSRecord, 255)
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	interval := time.Duration(intervalSeconds) * time.Second
