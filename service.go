@@ -45,6 +45,9 @@ type NetworkWebSocket_Service struct {
 	discoveryBrowser *DiscoveryBrowser
 
 	done chan int // blocks until .Stop() is called on this service
+
+	localListener net.Listener
+	netListener net.Listener
 }
 
 func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service {
@@ -103,6 +106,8 @@ func (service *NetworkWebSocket_Service) StartHTTPServer() {
 		log.Fatal("Could not serve web server. ", err)
 	}
 
+	service.localListener = listener
+
 	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
 
 	go http.Serve(listener, serveMux)
@@ -134,6 +139,8 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 	if err != nil {
 		log.Fatal("Could not serve proxy server. ", err)
 	}
+
+	service.netListener = tlsSrpListener
 
 	// Obtain and store the port of the proxy endpoint
 	_, port, err := net.SplitHostPort(tlsSrpListener.Addr().String())
@@ -286,6 +293,18 @@ func (service *NetworkWebSocket_Service) isActiveProxyService(serviceRecord *Net
 // Stop stops the server gracefully, and shuts down the running goroutine.
 // Stop should be called after a Start(s), otherwise it will block forever.
 func (service *NetworkWebSocket_Service) Stop() {
+	if service.discoveryBrowser != nil {
+		service.discoveryBrowser.closed = true
+	}
+
+	if service.localListener != nil {
+		service.localListener.Close()
+	}
+
+	if service.netListener != nil {
+		service.netListener.Close()
+	}
+
 	service.done <- 1
 }
 
