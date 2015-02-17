@@ -174,3 +174,70 @@ func TestMultipleProxyClients(t *testing.T) {
 	<-service1.StopNotify()
 	<-service2.StopNotify()
 }
+
+// BENCHMARKS
+
+func BenchmarkSameProxyClientSetup(b *testing.B) {
+	service := NewNetworkWebSocketService("localhost", 21000)
+	_ = service.Start()
+
+	// run the benchmark function b.N times
+	for n := 0; n < b.N; n++ {
+		// Create new Network Web Socket channel peers
+		client := createClient(b, "ws://localhost:21000/benchmarkservice1")
+		_ = getClientId(client) // wait for client connection to be established
+		client.Close()
+	}
+
+	go service.Stop()
+
+	<-service.StopNotify()
+}
+
+func BenchmarkSameProxyClientMessaging(b *testing.B) {
+	service := NewNetworkWebSocketService("localhost", 21000)
+	_ = service.Start()
+
+	client1 := createClient(b, "ws://localhost:21000/benchmarkservice2")
+	client2 := createClient(b, "ws://localhost:21000/benchmarkservice2")
+
+	client2Id := getClientId(client2)
+
+	// run the benchmark function b.N times
+	for n := 0; n < b.N; n++ {
+		checkMessage(b, "direct benchmark message", client2Id, client1, client2)
+	}
+
+	go func() {
+		client1.Close()
+		client2.Close()
+
+		service.Stop()
+	}()
+
+	<-service.StopNotify()
+}
+
+func BenchmarkSameProxyClientBroadcast(b *testing.B) {
+	service := NewNetworkWebSocketService("localhost", 21000)
+	_ = service.Start()
+
+	client1 := createClient(b, "ws://localhost:21000/benchmarkservice3")
+	client2 := createClient(b, "ws://localhost:21000/benchmarkservice3")
+	client3 := createClient(b, "ws://localhost:21000/benchmarkservice3")
+
+	// run the benchmark function b.N times
+	for n := 0; n < b.N; n++ {
+		checkBroadcast(b, "benchmark test msg", client1, []*NetworkWebSocketClient{client2, client3})
+	}
+
+	go func() {
+		client1.Close()
+		client2.Close()
+		client3.Close()
+
+		service.Stop()
+	}()
+
+	<-service.StopNotify()
+}
