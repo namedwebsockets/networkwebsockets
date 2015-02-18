@@ -121,9 +121,14 @@ func (proxy *ProxyConnection) readConnectionPump() {
 	defer func() {
 		proxy.Stop()
 	}()
+
 	proxy.base.conn.SetReadLimit(maxMessageSize)
 	proxy.base.conn.SetReadDeadline(time.Now().Add(pongWait))
-	proxy.base.conn.SetPongHandler(func(string) error { proxy.base.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	proxy.base.conn.SetPongHandler(func(string) error {
+		proxy.base.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
 	for {
 		opCode, buf, err := proxy.base.conn.ReadMessage()
 		if err != nil || opCode != websocket.TextMessage {

@@ -148,9 +148,14 @@ func (peer *PeerConnection) readConnectionPump() {
 	defer func() {
 		peer.Stop()
 	}()
+
 	peer.conn.SetReadLimit(maxMessageSize)
 	peer.conn.SetReadDeadline(time.Now().Add(pongWait))
-	peer.conn.SetPongHandler(func(string) error { peer.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	peer.conn.SetPongHandler(func(string) error {
+		peer.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
 	for {
 		opCode, buf, err := peer.conn.ReadMessage()
 		if err != nil || opCode != websocket.TextMessage {
