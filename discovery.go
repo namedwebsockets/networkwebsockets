@@ -102,8 +102,8 @@ func (dc *DiscoveryService) Shutdown() {
 type DiscoveryBrowser struct {
 	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
 	cachedDNSRecords map[string]*NetworkWebSocket_DNSRecord
-	inprogress bool
-	closed bool
+	inprogress       bool
+	closed           bool
 }
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {

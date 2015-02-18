@@ -47,7 +47,7 @@ type NetworkWebSocket_Service struct {
 	done chan int // blocks until .Stop() is called on this service
 
 	localListener net.Listener
-	netListener net.Listener
+	netListener   net.Listener
 }
 
 func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service {

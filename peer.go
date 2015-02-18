@@ -2,6 +2,7 @@ package networkwebsockets
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/richtr/websocket"
@@ -16,28 +17,78 @@ type PeerConnection struct {
 
 	// WebSocket connection object
 	conn *websocket.Conn
+
+	active bool
 }
 
-func NewPeerConnection(channel *NetworkWebSocket, conn *websocket.Conn) *PeerConnection {
+func NewPeerConnection(conn *websocket.Conn) *PeerConnection {
 	peerConn := &PeerConnection{
-		id:      GenerateId(),
-		channel: channel,
-		conn:    conn,
+		id:   GenerateId(),
+		conn: conn,
 	}
-
-	// Start websocket read/write pumps
-	peerConn.Start()
 
 	return peerConn
 }
 
-func (peer *PeerConnection) Start() {
+func (peer *PeerConnection) JoinChannel(channel *NetworkWebSocket) {
+	if channel == nil {
+		return
+	}
+
+	peer.channel = channel
+
+	// Add reference to this peer connection to channel
+	peer.addConnection()
+}
+
+func (peer *PeerConnection) LeaveChannel() {
+	if peer.channel == nil {
+		return
+	}
+
+	// Add reference to this peer connection to channel
+	peer.removeConnection()
+
+	peer.channel = nil
+}
+
+func (peer *PeerConnection) Start() error {
+	if peer.channel == nil {
+		return errors.New("PeerConnection does not have a channel. You must invoke .JoinGroup before .Start")
+	}
+
+	if peer.active {
+		return errors.New("PeerConnection is already started")
+	}
+
 	// Start connection read/write pumps
 	go peer.writeConnectionPump()
 	go peer.readConnectionPump()
 
-	// Add reference to this peer connection to channel
-	peer.addConnection()
+	peer.active = true
+
+	return nil
+}
+
+func (peer *PeerConnection) Stop() error {
+	if !peer.active {
+		return errors.New("PeerConnection cannot be stopped because it is not currently active")
+	}
+
+	// Remove references to this peer connection from channel
+	peer.removeConnection()
+
+	// Close websocket connection
+	peer.conn.Close()
+
+	// If no more local peers are connected then remove the current Named Web Socket service
+	if len(peer.channel.peers) == 0 {
+		peer.channel.Stop()
+	}
+
+	peer.active = false
+
+	return nil
 }
 
 func (peer *PeerConnection) SendBroadcast(data string) {
@@ -199,16 +250,4 @@ func (peer *PeerConnection) removeConnection() {
 			proxy.send("disconnect", proxy.base.id, peer.id, "")
 		}
 	}
-
-	peer.conn.Close()
-
-	// If no more local peers are connected then remove the current Named Web Socket service
-	if len(peer.channel.peers) == 0 {
-		peer.channel.Stop()
-	}
-}
-
-func (peer *PeerConnection) Stop() {
-	// Remove references to this peer connection from channel
-	peer.removeConnection()
 }

@@ -2,6 +2,7 @@ package networkwebsockets
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,31 +24,74 @@ type ProxyConnection struct {
 	writeable bool
 }
 
-func NewProxyConnection(channel *NetworkWebSocket, conn *websocket.Conn, isWriteable bool) *ProxyConnection {
+func NewProxyConnection(conn *websocket.Conn, isWriteable bool) *ProxyConnection {
 	proxyConn := &ProxyConnection{
 		base: PeerConnection{
-			id:      GenerateId(),
-			channel: channel,
-			conn:    conn,
+			id:   GenerateId(),
+			conn: conn,
 		},
 		Hash_Base64: "",
 		writeable:   isWriteable,
 		peerIds:     make(map[string]bool),
 	}
 
-	// Start websocket read/write pumps
-	proxyConn.Start()
-
 	return proxyConn
 }
 
-func (proxy *ProxyConnection) Start() {
+func (proxy *ProxyConnection) JoinChannel(channel *NetworkWebSocket) {
+	if channel == nil {
+		return
+	}
+
+	proxy.base.channel = channel
+
+	// Add reference to this proxy connection to channel
+	proxy.addConnection()
+}
+
+func (proxy *ProxyConnection) LeaveChannel() {
+	if proxy.base.channel == nil {
+		return
+	}
+
+	// Add reference to this peer connection to channel
+	proxy.removeConnection()
+
+	proxy.base.channel = nil
+}
+
+func (proxy *ProxyConnection) Start() error {
+	if proxy.base.channel == nil {
+		return errors.New("ProxyConnection does not have a channel. You must invoke .JoinGroup before .Start")
+	}
+
+	if proxy.base.active {
+		return errors.New("ProxyConnection is already started")
+	}
+
 	// Start connection read/write pumps
 	go proxy.writeConnectionPump()
 	go proxy.readConnectionPump()
 
-	// Add reference to this proxy connection to channel
-	proxy.addConnection()
+	proxy.base.active = true
+
+	return nil
+}
+
+func (proxy *ProxyConnection) Stop() error {
+	if !proxy.base.active {
+		return errors.New("ProxyConnection cannot be stopped because it is not currently active")
+	}
+
+	// Remove references to this proxy connection from channel
+	proxy.removeConnection()
+
+	// Close underlying websocket connection
+	proxy.base.conn.Close()
+
+	proxy.base.active = false
+
+	return nil
 }
 
 // Send a message to the target websocket connection
@@ -187,11 +231,4 @@ func (proxy *ProxyConnection) removeConnection() {
 			proxy.send("disconnect", proxy.base.id, peer.id, "")
 		}
 	}
-
-	proxy.base.conn.Close()
-}
-
-func (proxy *ProxyConnection) Stop() {
-	// Remove references to this proxy connection from channel
-	proxy.removeConnection()
 }

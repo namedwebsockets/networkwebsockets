@@ -151,8 +151,10 @@ func (sock *NetworkWebSocket) ServePeer(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_ = NewPeerConnection(sock, ws)
-
+	// Create, bind and start a new peer connection
+	peer := NewPeerConnection(ws)
+	peer.JoinChannel(sock)
+	peer.Start()
 }
 
 // Set up a new web socket connection
@@ -174,7 +176,10 @@ func (sock *NetworkWebSocket) ServeProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_ = NewProxyConnection(sock, ws, true)
+	// Create, bind and start a new proxy connection
+	proxy := NewProxyConnection(ws, true)
+	proxy.JoinChannel(sock)
+	proxy.Start()
 }
 
 func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
@@ -252,8 +257,11 @@ func (sock *NetworkWebSocket) dialFromDNSRecord(record *NetworkWebSocket_DNSReco
 
 		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
-		proxyConn := NewProxyConnection(sock, ws, false)
+		// Create, bind and start a new proxy connection
+		proxyConn := NewProxyConnection(ws, false)
+		proxyConn.JoinChannel(sock)
 		proxyConn.setHash_Base64(record.Hash_Base64)
+		proxyConn.Start()
 
 		return proxyConn, nil
 
