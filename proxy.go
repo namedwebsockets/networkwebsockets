@@ -136,7 +136,7 @@ func NewProxy(conn *websocket.Conn, isWriteable bool) *Proxy {
 	return proxyConn
 }
 
-func (proxy *Proxy) Start(channel *Socket) error {
+func (proxy *Proxy) Start(channel *Channel) error {
 	if channel == nil {
 		return errors.New("Proxy requires a channel to start")
 	}
@@ -172,7 +172,7 @@ func (proxy *Proxy) Stop() error {
 	// Close underlying websocket connection
 	proxy.base.transport.Stop()
 
-	// If no more local peers are connected then remove the current Named Web Socket service
+	// If no more local peers are connected then remove the current Network Web Socket service
 	if len(proxy.base.channel.peers) == 0 {
 		proxy.base.channel.Stop()
 	}
@@ -186,7 +186,7 @@ func (proxy *Proxy) setHash_Base64(hash string) {
 	proxy.Hash_Base64 = hash
 }
 
-// Set up a new Socket connection instance
+// Set up a new Channel connection instance
 func (proxy *Proxy) addConnection() {
 	proxy.base.channel.proxies = append(proxy.base.channel.proxies, proxy)
 
@@ -200,7 +200,7 @@ func (proxy *Proxy) addConnection() {
 	}
 }
 
-// Tear down an existing Socket connection instance
+// Tear down an existing Channel connection instance
 func (proxy *Proxy) removeConnection() {
 	for i, conn := range proxy.base.channel.proxies {
 		if proxy.base.id == conn.base.id {

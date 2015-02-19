@@ -66,7 +66,7 @@ func upgradeHTTPToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.
 	return ws, nil
 }
 
-func dialProxyFromDNSRecord(record *DNSRecord, sock *Socket) error {
+func dialProxyFromDNSRecord(record *DNSRecord, channel *Channel) error {
 
 	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
 
@@ -95,7 +95,7 @@ func dialProxyFromDNSRecord(record *DNSRecord, sock *Socket) error {
 			},
 			&tls.Config{
 				SRPUser:     record.Hash_Base64,
-				SRPPassword: sock.serviceName,
+				SRPPassword: channel.serviceName,
 			},
 		}
 
@@ -113,7 +113,7 @@ func dialProxyFromDNSRecord(record *DNSRecord, sock *Socket) error {
 		// Create, bind and start a new proxy connection
 		proxyConn := NewProxy(ws, true)
 		proxyConn.setHash_Base64(record.Hash_Base64)
-		proxyConn.Start(sock)
+		proxyConn.Start(channel)
 
 		return nil
 

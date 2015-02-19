@@ -30,7 +30,7 @@ var (
 	}
 )
 
-/** Named Web Socket DNS-SD Discovery Client interface **/
+/** Network Web Socket DNS-SD Discovery Client interface **/
 
 type DiscoveryService struct {
 	Name string
@@ -97,7 +97,7 @@ func (dc *DiscoveryService) Shutdown() {
 	}
 }
 
-/** Named Web Socket DNS-SD Discovery Server interface **/
+/** Network Web Socket DNS-SD Discovery Server interface **/
 
 type DiscoveryBrowser struct {
 	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
@@ -138,7 +138,7 @@ func (ds *DiscoveryBrowser) Browse(service *Service, intervalSeconds, timeoutSec
 	targetIPv4 = network_ipv4Addr
 	targetIPv6 = network_ipv6Addr
 
-	// Only look for Named Web Socket DNS-SD services
+	// Only look for Network Web Socket DNS-SD services
 	params := &mdns.QueryParam{
 		Service:  "_nws._tcp",
 		Domain:   "local",
@@ -162,34 +162,34 @@ func (ds *DiscoveryBrowser) Browse(service *Service, intervalSeconds, timeoutSec
 					continue
 				}
 
-				serviceRecord, err := NewSocketRecordFromDNSRecord(discoveredService)
+				serviceRecord, err := NewServiceRecordFromDNSRecord(discoveredService)
 				if err != nil {
 					log.Printf("err: %v", err)
 					continue
 				}
 
-				// Ignore our own Socket services
+				// Ignore our own Channel services
 				if service.isOwnProxyService(serviceRecord) {
 					continue
 				}
 
-				// Ignore previously discovered Socket proxy services
+				// Ignore previously discovered Channel proxy services
 				if service.isActiveProxyService(serviceRecord) {
 					continue
 				}
 
 				// Resolve discovered service hash provided against available services
-				var sock *Socket
+				var channel *Channel
 				for _, knownService := range service.Channels {
 					if bcrypt.Match(knownService.serviceName, serviceRecord.Hash_BCrypt) {
-						sock = knownService
+						channel = knownService
 						break
 					}
 				}
 
-				if sock != nil {
+				if channel != nil {
 					// Create new web socket connection toward discovered proxy
-					if dErr := dialProxyFromDNSRecord(serviceRecord, sock); dErr != nil {
+					if dErr := dialProxyFromDNSRecord(serviceRecord, channel); dErr != nil {
 						log.Printf("err: %v", dErr)
 						continue
 					}
@@ -225,7 +225,7 @@ func (ds *DiscoveryBrowser) Shutdown() {
 	ds.closed = true
 }
 
-/** Named Web Socket DNS Record interface **/
+/** Network Web Socket DNS Record interface **/
 
 type DNSRecord struct {
 	*mdns.ServiceEntry
@@ -235,13 +235,13 @@ type DNSRecord struct {
 	Hash_BCrypt string
 }
 
-func NewSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*DNSRecord, error) {
+func NewServiceRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*DNSRecord, error) {
 	servicePath := ""
 	serviceHash_Base64 := ""
 	serviceHash_BCrypt := ""
 
 	if serviceEntry.Info == "" {
-		return nil, errors.New("Could not find associated TXT record for advertised Named Web Socket service")
+		return nil, errors.New("Could not find associated TXT record for advertised Network Web Socket service")
 	}
 
 	serviceParts := strings.FieldsFunc(serviceEntry.Info, func(r rune) bool {
@@ -263,11 +263,11 @@ func NewSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*DNSRecord, 
 	}
 
 	if servicePath == "" || serviceHash_Base64 == "" || serviceHash_BCrypt == "" {
-		return nil, errors.New("Could not resolve the provided Named Web Socket DNS Record")
+		return nil, errors.New("Could not resolve the provided Network Web Socket DNS Record")
 	}
 
-	// Create and return a new Named Web Socket DNS Record with the parsed information
-	newSocketDNSRecord := &DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
+	// Create and return a new Network Web Socket DNS Record with the parsed information
+	newServiceDNSRecord := &DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
 
-	return newSocketDNSRecord, nil
+	return newServiceDNSRecord, nil
 }

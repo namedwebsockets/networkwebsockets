@@ -9,7 +9,7 @@ import (
 	"github.com/richtr/bcrypt"
 )
 
-type Socket struct {
+type Channel struct {
 	serviceName string
 
 	serviceHash string
@@ -27,18 +27,18 @@ type Socket struct {
 	// Buffered channel of outbound service messages.
 	broadcastBuffer chan *WireMessage
 
-	// Attached DNS-SD discovery registration and browser for this Named Web Socket
+	// Attached DNS-SD discovery registration and browser for this Network Web Socket
 	discoveryService *DiscoveryService
 
 	done chan int // blocks until .Stop() is called
 }
 
-// Create a new Socket instance with a given service type
-func NewSocket(service *Service, serviceName string) *Socket {
+// Create a new Channel instance with a given service type
+func NewChannel(service *Service, serviceName string) *Channel {
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
-	sock := &Socket{
+	channel := &Channel{
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
 
@@ -51,33 +51,33 @@ func NewSocket(service *Service, serviceName string) *Socket {
 		done: make(chan int, 1),
 	}
 
-	sock.proxyPath = fmt.Sprintf("/%s", GenerateId())
+	channel.proxyPath = fmt.Sprintf("/%s", GenerateId())
 
-	go sock.messageDispatcher()
+	go channel.messageDispatcher()
 
-	log.Printf("New '%s' channel peer created.", sock.serviceName)
+	log.Printf("New '%s' channel peer created.", channel.serviceName)
 
-	service.Channels[sock.servicePath] = sock
+	service.Channels[channel.servicePath] = channel
 
 	// Terminate channel when it is closed
 	go func() {
-		<-sock.stopNotify()
-		delete(service.Channels, sock.servicePath)
+		<-channel.stopNotify()
+		delete(service.Channels, channel.servicePath)
 	}()
 
 	// Add TLS-SRP credentials for access to this service to credentials store
 	// TODO isolate this per socket
-	serviceTab[sock.serviceHash] = sock.serviceName
+	serviceTab[channel.serviceHash] = channel.serviceName
 
-	go sock.advertise(service.ProxyPort)
+	go channel.advertise(service.ProxyPort)
 
 	if service.discoveryBrowser != nil {
 
 		// Attempt to resolve discovered unknown service hashes with this service name
 		recordsCache := make(map[string]*DNSRecord)
 		for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
-			if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
-				if dErr := dialProxyFromDNSRecord(cachedRecord, sock); dErr != nil {
+			if bcrypt.Match(channel.serviceName, cachedRecord.Hash_BCrypt) {
+				if dErr := dialProxyFromDNSRecord(cachedRecord, channel); dErr != nil {
 					log.Printf("err: %v", dErr)
 				}
 			} else {
@@ -91,19 +91,19 @@ func NewSocket(service *Service, serviceName string) *Socket {
 
 	}
 
-	return sock
+	return channel
 }
 
-func (sock *Socket) advertise(port int) {
-	if sock.discoveryService == nil {
+func (channel *Channel) advertise(port int) {
+	if channel.discoveryService == nil {
 		// Advertise new socket type on the network
-		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, sock.proxyPath, port)
-		sock.discoveryService.Register("local")
+		channel.discoveryService = NewDiscoveryService(channel.serviceName, channel.serviceHash, channel.proxyPath, port)
+		channel.discoveryService.Register("local")
 	}
 }
 
 // Set up a new web socket connection
-func (sock *Socket) ServePeer(w http.ResponseWriter, r *http.Request) {
+func (channel *Channel) ServePeer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -117,11 +117,11 @@ func (sock *Socket) ServePeer(w http.ResponseWriter, r *http.Request) {
 
 	// Create, bind and start a new peer connection
 	peer := NewPeer(ws)
-	peer.Start(sock)
+	peer.Start(channel)
 }
 
 // Set up a new web socket connection
-func (sock *Socket) ServeProxy(w http.ResponseWriter, r *http.Request) {
+func (channel *Channel) ServeProxy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -141,30 +141,30 @@ func (sock *Socket) ServeProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Create, bind and start a new proxy connection
 	proxy := NewProxy(ws, false)
-	proxy.Start(sock)
+	proxy.Start(channel)
 }
 
-// Send service broadcast messages on Socket connections
-func (sock *Socket) messageDispatcher() {
+// Send service broadcast messages on Channel connections
+func (channel *Channel) messageDispatcher() {
 	for {
 		select {
-		case wsBroadcast, ok := <-sock.broadcastBuffer:
+		case wsBroadcast, ok := <-channel.broadcastBuffer:
 			if !ok {
 				return
 			}
 			// Send message to local peers
-			sock.localBroadcast(wsBroadcast)
+			channel.localBroadcast(wsBroadcast)
 			// Send message to remote proxies
-			sock.remoteBroadcast(wsBroadcast)
+			channel.remoteBroadcast(wsBroadcast)
 		}
 	}
 }
 
-// Broadcast a message to all peer connections for this Socket
+// Broadcast a message to all peer connections for this Channel
 // instance (except to the src websocket connection)
-func (sock *Socket) localBroadcast(broadcast *WireMessage) {
+func (channel *Channel) localBroadcast(broadcast *WireMessage) {
 	// Write to peer connections
-	for _, peer := range sock.peers {
+	for _, peer := range channel.peers {
 		// don't send back to self
 		if peer.id == broadcast.Source {
 			continue
@@ -175,16 +175,16 @@ func (sock *Socket) localBroadcast(broadcast *WireMessage) {
 	}
 }
 
-// Broadcast a message to all proxy connections for this Socket
+// Broadcast a message to all proxy connections for this Channel
 // instance (except to the src websocket connection)
-func (sock *Socket) remoteBroadcast(broadcast *WireMessage) {
+func (channel *Channel) remoteBroadcast(broadcast *WireMessage) {
 	// Only send to remote proxies if this message was not received from a proxy itself
 	if broadcast.fromProxy {
 		return
 	}
 
 	// Write to proxy connections
-	for _, proxy := range sock.proxies {
+	for _, proxy := range channel.proxies {
 		// don't send back to self
 		// only write to *writeable* proxy connections
 		if !proxy.writeable || proxy.base.id == broadcast.Source {
@@ -198,24 +198,24 @@ func (sock *Socket) remoteBroadcast(broadcast *WireMessage) {
 
 // Destroy this Network Web Socket service instance, close all
 // peer and proxy connections.
-func (sock *Socket) Stop() {
+func (channel *Channel) Stop() {
 	// Close discovery browser
-	if sock.discoveryService != nil {
-		sock.discoveryService.Shutdown()
+	if channel.discoveryService != nil {
+		channel.discoveryService.Shutdown()
 	}
 
-	for _, peer := range sock.peers {
+	for _, peer := range channel.peers {
 		peer.Stop()
 	}
 
-	for _, proxy := range sock.proxies {
+	for _, proxy := range channel.proxies {
 		proxy.Stop()
 	}
 
 	// Indicate object is closed
-	sock.done <- 1
+	channel.done <- 1
 }
 
 // StopNotify returns a channel that receives a empty integer
 // when the channel service is terminated.
-func (sock *Socket) stopNotify() <-chan int { return sock.done }
+func (channel *Channel) stopNotify() <-chan int { return channel.done }

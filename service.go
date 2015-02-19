@@ -39,8 +39,8 @@ type Service struct {
 
 	ProxyPort int
 
-	// All Named Web Socket channels that this service manages
-	Channels map[string]*Socket
+	// All Network Web Socket channels that this service manages
+	Channels map[string]*Channel
 
 	discoveryBrowser *DiscoveryBrowser
 
@@ -70,7 +70,7 @@ func NewService(host string, port int) *Service {
 
 		ProxyPort: 0,
 
-		Channels: make(map[string]*Socket),
+		Channels: make(map[string]*Channel),
 
 		discoveryBrowser: NewDiscoveryBrowser(),
 
@@ -108,7 +108,7 @@ func (service *Service) StartHTTPServer() {
 
 	service.localListener = listener
 
-	log.Printf("Serving Named Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
+	log.Printf("Serving Network Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
 
 	go http.Serve(listener, serveMux)
 }
@@ -150,13 +150,13 @@ func (service *Service) StartProxyServer() {
 
 	service.ProxyPort, _ = strconv.Atoi(port)
 
-	log.Printf("Serving Named Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
+	log.Printf("Serving Network Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
 
 	go http.Serve(tlsSrpListener, serveMux)
 }
 
 func (service *Service) StartDiscoveryBrowser(intervalSeconds, timeoutSeconds int) {
-	log.Printf("Listening for Named Web Socket services on the local network...")
+	log.Printf("Listening for Network Web Socket services on the local network...")
 
 	go func() {
 		defer service.discoveryBrowser.Shutdown()
@@ -213,16 +213,16 @@ func (service *Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	// Resolve to network web socket channel
-	sock := service.GetChannelByName(serviceName)
-	if sock == nil {
-		sock = NewSocket(service, serviceName)
+	channel := service.GetChannelByName(serviceName)
+	if channel == nil {
+		channel = NewChannel(service, serviceName)
 
 		// Trigger network service detection to speed up pairing (1)
 		go service.discoveryBrowser.Browse(service, 2, 2)
 	}
 
 	// Serve network web socket channel peer
-	sock.ServePeer(w, r)
+	channel.ServePeer(w, r)
 }
 
 func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Request) {
@@ -243,9 +243,9 @@ func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Resolve servicePath to an active named websocket service
-	for _, sock := range service.Channels {
-		if sock.proxyPath == r.URL.Path {
-			sock.ServeProxy(w, r)
+	for _, channel := range service.Channels {
+		if channel.proxyPath == r.URL.Path {
+			channel.ServeProxy(w, r)
 
 			// Trigger network service detection to speed up pairing (2)
 			go service.discoveryBrowser.Browse(service, 2, 2)
@@ -259,10 +259,10 @@ func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Reque
 }
 
 // Check whether we know the given service name
-func (service *Service) GetChannelByName(serviceName string) *Socket {
-	for _, sock := range service.Channels {
-		if sock.serviceName == serviceName {
-			return sock
+func (service *Service) GetChannelByName(serviceName string) *Channel {
+	for _, channel := range service.Channels {
+		if channel.serviceName == serviceName {
+			return channel
 		}
 	}
 	return nil
@@ -270,8 +270,8 @@ func (service *Service) GetChannelByName(serviceName string) *Socket {
 
 // Check whether a DNS-SD derived Network Web Socket hash is owned by the current proxy instance
 func (service *Service) isOwnProxyService(serviceRecord *DNSRecord) bool {
-	for _, sock := range service.Channels {
-		if sock.serviceHash == serviceRecord.Hash_Base64 {
+	for _, channel := range service.Channels {
+		if channel.serviceHash == serviceRecord.Hash_Base64 {
 			return true
 		}
 	}
@@ -280,8 +280,8 @@ func (service *Service) isOwnProxyService(serviceRecord *DNSRecord) bool {
 
 // Check whether a DNS-SD derived Network Web Socket hash is currently connected as a service
 func (service *Service) isActiveProxyService(serviceRecord *DNSRecord) bool {
-	for _, sock := range service.Channels {
-		for _, proxy := range sock.proxies {
+	for _, channel := range service.Channels {
+		for _, proxy := range channel.proxies {
 			if proxy.Hash_Base64 == serviceRecord.Hash_Base64 {
 				return true
 			}

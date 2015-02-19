@@ -12,7 +12,7 @@ type Peer struct {
 	id string
 
 	// The Network Web Socket channel to which this peer connection belongs
-	channel *Socket
+	channel *Channel
 
 	// Transport object
 	transport *Transport
@@ -36,7 +36,11 @@ func (handler *PeerMessageHandler) Read(buf []byte) error {
 	}
 
 	switch message.Action {
-	// 'connect' and 'disconnect' events are write-only so will not be handled here
+
+	case "connect":
+	case "disconnect":
+		// 'connect' and 'disconnect' events are write-only so will not be handled here
+		return nil
 
 	case "status":
 
@@ -131,7 +135,7 @@ func NewPeer(conn *websocket.Conn) *Peer {
 	return peerConn
 }
 
-func (peer *Peer) Start(channel *Socket) error {
+func (peer *Peer) Start(channel *Channel) error {
 	if channel == nil {
 		return errors.New("Peer requires a channel to start")
 	}
@@ -167,7 +171,7 @@ func (peer *Peer) Stop() error {
 	// Close websocket connection
 	peer.transport.Stop()
 
-	// If no more local peers are connected then remove the current Named Web Socket service
+	// If no more local peers are connected then remove the current Network Web Socket service
 	if len(peer.channel.peers) == 0 {
 		peer.channel.Stop()
 	}
@@ -177,9 +181,9 @@ func (peer *Peer) Stop() error {
 	return nil
 }
 
-// Set up a new Socket connection instance
+// Set up a new Channel connection instance
 func (peer *Peer) addConnection() {
-	// Add this websocket instance to Named WebSocket broadcast list
+	// Add this websocket instance to Network Web Socket broadcast list
 	peer.channel.peers = append(peer.channel.peers, peer)
 
 	for _, _peer := range peer.channel.peers {
@@ -212,7 +216,7 @@ func (peer *Peer) addConnection() {
 	}
 }
 
-// Tear down an existing Socket connection instance
+// Tear down an existing Channel connection instance
 func (peer *Peer) removeConnection() {
 	for i, conn := range peer.channel.peers {
 		if conn.id == peer.id {
