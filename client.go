@@ -8,7 +8,7 @@ import (
 	"github.com/richtr/websocket"
 )
 
-func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
+func Dial(urlStr string) (*Client, *http.Response, error) {
 	d := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		ReadBufferSize:   8192,
@@ -20,7 +20,7 @@ func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
 		return nil, nil, err
 	}
 
-	client := NewNetworkWebSocketClient(wsConn)
+	client := NewClient(wsConn)
 
 	// Start read/write pumps
 	go client.readPump()
@@ -29,39 +29,39 @@ func Dial(urlStr string) (*NetworkWebSocketClient, *http.Response, error) {
 	return client, httpResp, nil
 }
 
-// NetworkWebSocketClient interface
+// Client interface
 
-type NetworkWebSocketClient struct {
+type Client struct {
 	// Underlying websocket connection object
 	conn *websocket.Conn
 
 	// incoming message channels
-	Status     chan NetworkWebSocketWireMessage
-	Connect    chan NetworkWebSocketWireMessage
-	Disconnect chan NetworkWebSocketWireMessage
-	Message    chan NetworkWebSocketWireMessage
-	Broadcast  chan NetworkWebSocketWireMessage
+	Status     chan WireMessage
+	Connect    chan WireMessage
+	Disconnect chan WireMessage
+	Message    chan WireMessage
+	Broadcast  chan WireMessage
 }
 
-func NewNetworkWebSocketClient(wsConn *websocket.Conn) *NetworkWebSocketClient {
-	client := &NetworkWebSocketClient{
+func NewClient(wsConn *websocket.Conn) *Client {
+	client := &Client{
 		conn: wsConn,
 
-		Status:     make(chan NetworkWebSocketWireMessage, 255),
-		Connect:    make(chan NetworkWebSocketWireMessage, 255),
-		Disconnect: make(chan NetworkWebSocketWireMessage, 255),
-		Message:    make(chan NetworkWebSocketWireMessage, 255),
-		Broadcast:  make(chan NetworkWebSocketWireMessage, 255),
+		Status:     make(chan WireMessage, 255),
+		Connect:    make(chan WireMessage, 255),
+		Disconnect: make(chan WireMessage, 255),
+		Message:    make(chan WireMessage, 255),
+		Broadcast:  make(chan WireMessage, 255),
 	}
 
 	return client
 }
 
-func (client *NetworkWebSocketClient) SendBroadcastData(data string) {
+func (client *Client) SendBroadcastData(data string) {
 	client.send("broadcast", "", data)
 }
 
-func (client *NetworkWebSocketClient) SendMessageData(data string, targetId string) {
+func (client *Client) SendMessageData(data string, targetId string) {
 	if targetId == "" {
 		return
 	}
@@ -69,14 +69,14 @@ func (client *NetworkWebSocketClient) SendMessageData(data string, targetId stri
 	client.send("message", targetId, data)
 }
 
-func (client *NetworkWebSocketClient) SendStatusRequest() {
+func (client *Client) SendStatusRequest() {
 	client.send("status", "", "")
 }
 
 // Send a message to the target websocket connection
-func (client *NetworkWebSocketClient) send(action string, target string, payload string) {
+func (client *Client) send(action string, target string, payload string) {
 	// Construct proxy wire message
-	m := NetworkWebSocketWireMessage{
+	m := WireMessage{
 		Action:  action,
 		Target:  target,
 		Payload: payload,
@@ -92,8 +92,8 @@ func (client *NetworkWebSocketClient) send(action string, target string, payload
 	client.conn.WriteMessage(websocket.TextMessage, wireMsg)
 }
 
-// readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (client *NetworkWebSocketClient) readPump() {
+// readPump pumps messages from an individual websocket connection to the dispatcher
+func (client *Client) readPump() {
 	defer func() {
 		//client.Stop()
 	}()
@@ -106,7 +106,7 @@ func (client *NetworkWebSocketClient) readPump() {
 			break
 		}
 
-		var message NetworkWebSocketWireMessage
+		var message WireMessage
 		if err := json.Unmarshal(buf, &message); err != nil {
 			continue // ignore unrecognized message format
 		}
@@ -126,8 +126,8 @@ func (client *NetworkWebSocketClient) readPump() {
 	}
 }
 
-// writeConnectionPump keeps an individual websocket connection alive
-func (client *NetworkWebSocketClient) writePump() {
+// writePump keeps an individual websocket connection alive
+func (client *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -143,6 +143,6 @@ func (client *NetworkWebSocketClient) writePump() {
 	}
 }
 
-func (client *NetworkWebSocketClient) Close() {
+func (client *Client) Close() {
 	client.conn.Close()
 }

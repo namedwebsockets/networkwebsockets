@@ -33,14 +33,14 @@ func GenerateId() string {
 	return fmt.Sprintf("%d", rand.Int())
 }
 
-type NetworkWebSocket_Service struct {
+type Service struct {
 	Host string
 	Port int
 
 	ProxyPort int
 
 	// All Named Web Socket channels that this service manages
-	Channels map[string]*NetworkWebSocket
+	Channels map[string]*Socket
 
 	discoveryBrowser *DiscoveryBrowser
 
@@ -50,7 +50,7 @@ type NetworkWebSocket_Service struct {
 	netListener   net.Listener
 }
 
-func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service {
+func NewService(host string, port int) *Service {
 	if host == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -64,13 +64,13 @@ func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service
 		port = 9009
 	}
 
-	service := &NetworkWebSocket_Service{
+	service := &Service{
 		Host: host,
 		Port: port,
 
 		ProxyPort: 0,
 
-		Channels: make(map[string]*NetworkWebSocket),
+		Channels: make(map[string]*Socket),
 
 		discoveryBrowser: NewDiscoveryBrowser(),
 
@@ -80,7 +80,7 @@ func NewNetworkWebSocketService(host string, port int) *NetworkWebSocket_Service
 	return service
 }
 
-func (service *NetworkWebSocket_Service) Start() <-chan int {
+func (service *Service) Start() <-chan int {
 	// Start HTTP/Network Web Socket creation server
 	service.StartHTTPServer()
 
@@ -93,7 +93,7 @@ func (service *NetworkWebSocket_Service) Start() <-chan int {
 	return service.StopNotify()
 }
 
-func (service *NetworkWebSocket_Service) StartHTTPServer() {
+func (service *Service) StartHTTPServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -113,7 +113,7 @@ func (service *NetworkWebSocket_Service) StartHTTPServer() {
 	go http.Serve(listener, serveMux)
 }
 
-func (service *NetworkWebSocket_Service) StartProxyServer() {
+func (service *Service) StartProxyServer() {
 	// Create a new custom http server multiplexer
 	serveMux := http.NewServeMux()
 
@@ -155,7 +155,7 @@ func (service *NetworkWebSocket_Service) StartProxyServer() {
 	go http.Serve(tlsSrpListener, serveMux)
 }
 
-func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(intervalSeconds, timeoutSeconds int) {
+func (service *Service) StartDiscoveryBrowser(intervalSeconds, timeoutSeconds int) {
 	log.Printf("Listening for Named Web Socket services on the local network...")
 
 	go func() {
@@ -167,7 +167,7 @@ func (service *NetworkWebSocket_Service) StartDiscoveryBrowser(intervalSeconds, 
 	}()
 }
 
-func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {
+func (service *Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {
 	// Only allow access from localhost to all services
 	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
 		http.Error(w, fmt.Sprintln("This interface is only accessible from the local machine"), 403)
@@ -215,7 +215,7 @@ func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWr
 	// Resolve to network web socket channel
 	sock := service.GetChannelByName(serviceName)
 	if sock == nil {
-		sock = NewNetworkWebSocket(service, serviceName)
+		sock = NewSocket(service, serviceName)
 
 		// Trigger network service detection to speed up pairing (1)
 		go service.discoveryBrowser.Browse(service, 2, 2)
@@ -225,7 +225,7 @@ func (service *NetworkWebSocket_Service) serveWSCreatorRequest(w http.ResponseWr
 	sock.ServePeer(w, r)
 }
 
-func (service *NetworkWebSocket_Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Request) {
+func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
@@ -259,7 +259,7 @@ func (service *NetworkWebSocket_Service) serveWSProxyRequest(w http.ResponseWrit
 }
 
 // Check whether we know the given service name
-func (service *NetworkWebSocket_Service) GetChannelByName(serviceName string) *NetworkWebSocket {
+func (service *Service) GetChannelByName(serviceName string) *Socket {
 	for _, sock := range service.Channels {
 		if sock.serviceName == serviceName {
 			return sock
@@ -269,7 +269,7 @@ func (service *NetworkWebSocket_Service) GetChannelByName(serviceName string) *N
 }
 
 // Check whether a DNS-SD derived Network Web Socket hash is owned by the current proxy instance
-func (service *NetworkWebSocket_Service) isOwnProxyService(serviceRecord *NetworkWebSocket_DNSRecord) bool {
+func (service *Service) isOwnProxyService(serviceRecord *DNSRecord) bool {
 	for _, sock := range service.Channels {
 		if sock.serviceHash == serviceRecord.Hash_Base64 {
 			return true
@@ -279,7 +279,7 @@ func (service *NetworkWebSocket_Service) isOwnProxyService(serviceRecord *Networ
 }
 
 // Check whether a DNS-SD derived Network Web Socket hash is currently connected as a service
-func (service *NetworkWebSocket_Service) isActiveProxyService(serviceRecord *NetworkWebSocket_DNSRecord) bool {
+func (service *Service) isActiveProxyService(serviceRecord *DNSRecord) bool {
 	for _, sock := range service.Channels {
 		for _, proxy := range sock.proxies {
 			if proxy.Hash_Base64 == serviceRecord.Hash_Base64 {
@@ -292,7 +292,7 @@ func (service *NetworkWebSocket_Service) isActiveProxyService(serviceRecord *Net
 
 // Stop stops the server gracefully, and shuts down the running goroutine.
 // Stop should be called after a Start(s), otherwise it will block forever.
-func (service *NetworkWebSocket_Service) Stop() {
+func (service *Service) Stop() {
 	if service.discoveryBrowser != nil {
 		service.discoveryBrowser.closed = true
 	}
@@ -310,13 +310,13 @@ func (service *NetworkWebSocket_Service) Stop() {
 
 // StopNotify returns a channel that receives a empty integer
 // when the server is stopped.
-func (service *NetworkWebSocket_Service) StopNotify() <-chan int { return service.done }
+func (service *Service) StopNotify() <-chan int { return service.done }
 
 //
 // HELPER FUNCTIONS
 //
 
-func (service *NetworkWebSocket_Service) checkRequestIsFromLocalHost(host string) bool {
+func (service *Service) checkRequestIsFromLocalHost(host string) bool {
 	allowedLocalHosts := map[string]bool{
 		fmt.Sprintf("localhost:%d", service.Port):        true,
 		fmt.Sprintf("127.0.0.1:%d", service.Port):        true,

@@ -101,14 +101,14 @@ func (dc *DiscoveryService) Shutdown() {
 
 type DiscoveryBrowser struct {
 	// Network Web Socket DNS-SD records currently unresolved by this proxy instance
-	cachedDNSRecords map[string]*NetworkWebSocket_DNSRecord
+	cachedDNSRecords map[string]*DNSRecord
 	inprogress       bool
 	closed           bool
 }
 
 func NewDiscoveryBrowser() *DiscoveryBrowser {
 	discoveryBrowser := &DiscoveryBrowser{
-		cachedDNSRecords: make(map[string]*NetworkWebSocket_DNSRecord, 255),
+		cachedDNSRecords: make(map[string]*DNSRecord, 255),
 		inprogress:       false,
 		closed:           false,
 	}
@@ -116,7 +116,7 @@ func NewDiscoveryBrowser() *DiscoveryBrowser {
 	return discoveryBrowser
 }
 
-func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSeconds, timeoutSeconds int) {
+func (ds *DiscoveryBrowser) Browse(service *Service, intervalSeconds, timeoutSeconds int) {
 
 	// Don't run two browse processes at the same time
 	if ds.inprogress {
@@ -127,7 +127,7 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSe
 
 	entries := make(chan *mdns.ServiceEntry, 255)
 
-	recordsCache := make(map[string]*NetworkWebSocket_DNSRecord, 255)
+	recordsCache := make(map[string]*DNSRecord, 255)
 
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	interval := time.Duration(intervalSeconds) * time.Second
@@ -162,24 +162,24 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSe
 					continue
 				}
 
-				serviceRecord, err := NewNetworkWebSocketRecordFromDNSRecord(discoveredService)
+				serviceRecord, err := NewSocketRecordFromDNSRecord(discoveredService)
 				if err != nil {
 					log.Printf("err: %v", err)
 					continue
 				}
 
-				// Ignore our own NetworkWebSocket services
+				// Ignore our own Socket services
 				if service.isOwnProxyService(serviceRecord) {
 					continue
 				}
 
-				// Ignore previously discovered NetworkWebSocket proxy services
+				// Ignore previously discovered Socket proxy services
 				if service.isActiveProxyService(serviceRecord) {
 					continue
 				}
 
 				// Resolve discovered service hash provided against available services
-				var sock *NetworkWebSocket
+				var sock *Socket
 				for _, knownService := range service.Channels {
 					if bcrypt.Match(knownService.serviceName, serviceRecord.Hash_BCrypt) {
 						sock = knownService
@@ -189,7 +189,7 @@ func (ds *DiscoveryBrowser) Browse(service *NetworkWebSocket_Service, intervalSe
 
 				if sock != nil {
 					// Create new web socket connection toward discovered proxy
-					if _, dErr := sock.dialFromDNSRecord(serviceRecord); dErr != nil {
+					if dErr := dialProxyFromDNSRecord(serviceRecord, sock); dErr != nil {
 						log.Printf("err: %v", dErr)
 						continue
 					}
@@ -227,7 +227,7 @@ func (ds *DiscoveryBrowser) Shutdown() {
 
 /** Named Web Socket DNS Record interface **/
 
-type NetworkWebSocket_DNSRecord struct {
+type DNSRecord struct {
 	*mdns.ServiceEntry
 
 	Path        string
@@ -235,7 +235,7 @@ type NetworkWebSocket_DNSRecord struct {
 	Hash_BCrypt string
 }
 
-func NewNetworkWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*NetworkWebSocket_DNSRecord, error) {
+func NewSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*DNSRecord, error) {
 	servicePath := ""
 	serviceHash_Base64 := ""
 	serviceHash_BCrypt := ""
@@ -267,7 +267,7 @@ func NewNetworkWebSocketRecordFromDNSRecord(serviceEntry *mdns.ServiceEntry) (*N
 	}
 
 	// Create and return a new Named Web Socket DNS Record with the parsed information
-	newNetworkWebSocketDNSRecord := &NetworkWebSocket_DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
+	newSocketDNSRecord := &DNSRecord{serviceEntry, servicePath, serviceHash_Base64, serviceHash_BCrypt}
 
-	return newNetworkWebSocketDNSRecord, nil
+	return newSocketDNSRecord, nil
 }

@@ -2,34 +2,14 @@ package networkwebsockets
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
-	"time"
 
 	"github.com/richtr/bcrypt"
-	tls "github.com/richtr/go-tls-srp"
-	"github.com/richtr/websocket"
 )
 
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 8192
-)
-
-type NetworkWebSocket struct {
+type Socket struct {
 	serviceName string
 
 	serviceHash string
@@ -39,52 +19,36 @@ type NetworkWebSocket struct {
 	proxyPath string
 
 	// The current websocket connection instances to this named websocket
-	peers []*PeerConnection
+	peers []*Peer
 
 	// The current websocket proxy connection instances to this named websocket
-	proxies []*ProxyConnection
+	proxies []*Proxy
 
 	// Buffered channel of outbound service messages.
-	broadcastBuffer chan *NetworkWebSocketWireMessage
+	broadcastBuffer chan *WireMessage
 
 	// Attached DNS-SD discovery registration and browser for this Named Web Socket
 	discoveryService *DiscoveryService
 
-	done chan int // blocks until .close() is called
+	done chan int // blocks until .Stop() is called
 }
 
-// JSON structure to message sending
-type NetworkWebSocketWireMessage struct {
-	// Proxy message type: "connect", "disconnect", "message", "broadcast"
-	Action string `json:"action"`
-
-	Source string `json:"source,omitempty"`
-
-	Target string `json:"target,omitempty"`
-
-	// Message contents
-	Payload string `json:"data,omitempty"`
-
-	// Whether this message originated from a ProxyConnection object
-	fromProxy bool `json:"-"`
-}
-
-// Create a new NetworkWebSocket instance with a given service type
-func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string) *NetworkWebSocket {
+// Create a new Socket instance with a given service type
+func NewSocket(service *Service, serviceName string) *Socket {
 	serviceHash_BCrypt, _ := bcrypt.HashBytes([]byte(serviceName))
 	serviceHash_Base64 := base64.StdEncoding.EncodeToString(serviceHash_BCrypt)
 
-	sock := &NetworkWebSocket{
+	sock := &Socket{
 		serviceName: serviceName,
 		serviceHash: serviceHash_Base64,
 
 		servicePath: fmt.Sprintf("/%s", serviceName),
 
-		peers:           make([]*PeerConnection, 0),
-		proxies:         make([]*ProxyConnection, 0),
-		broadcastBuffer: make(chan *NetworkWebSocketWireMessage, 512),
+		peers:           make([]*Peer, 0),
+		proxies:         make([]*Proxy, 0),
+		broadcastBuffer: make(chan *WireMessage, 512),
 
-		done: make(chan int),
+		done: make(chan int, 1),
 	}
 
 	sock.proxyPath = fmt.Sprintf("/%s", GenerateId())
@@ -110,10 +74,10 @@ func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string) 
 	if service.discoveryBrowser != nil {
 
 		// Attempt to resolve discovered unknown service hashes with this service name
-		recordsCache := make(map[string]*NetworkWebSocket_DNSRecord)
+		recordsCache := make(map[string]*DNSRecord)
 		for _, cachedRecord := range service.discoveryBrowser.cachedDNSRecords {
 			if bcrypt.Match(sock.serviceName, cachedRecord.Hash_BCrypt) {
-				if _, dErr := sock.dialFromDNSRecord(cachedRecord); dErr != nil {
+				if dErr := dialProxyFromDNSRecord(cachedRecord, sock); dErr != nil {
 					log.Printf("err: %v", dErr)
 				}
 			} else {
@@ -130,7 +94,7 @@ func NewNetworkWebSocket(service *NetworkWebSocket_Service, serviceName string) 
 	return sock
 }
 
-func (sock *NetworkWebSocket) advertise(port int) {
+func (sock *Socket) advertise(port int) {
 	if sock.discoveryService == nil {
 		// Advertise new socket type on the network
 		sock.discoveryService = NewDiscoveryService(sock.serviceName, sock.serviceHash, sock.proxyPath, port)
@@ -139,26 +103,25 @@ func (sock *NetworkWebSocket) advertise(port int) {
 }
 
 // Set up a new web socket connection
-func (sock *NetworkWebSocket) ServePeer(w http.ResponseWriter, r *http.Request) {
+func (sock *Socket) ServePeer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
 
-	ws, err := sock.upgradeToWebSocket(w, r)
+	ws, err := upgradeHTTPToWebSocket(w, r)
 	if err != nil {
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
 	// Create, bind and start a new peer connection
-	peer := NewPeerConnection(ws)
-	peer.JoinChannel(sock)
-	peer.Start()
+	peer := NewPeer(ws)
+	peer.Start(sock)
 }
 
 // Set up a new web socket connection
-func (sock *NetworkWebSocket) ServeProxy(w http.ResponseWriter, r *http.Request) {
+func (sock *Socket) ServeProxy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -170,109 +133,19 @@ func (sock *NetworkWebSocket) ServeProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ws, err := sock.upgradeToWebSocket(w, r)
+	ws, err := upgradeHTTPToWebSocket(w, r)
 	if err != nil {
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
 	// Create, bind and start a new proxy connection
-	proxy := NewProxyConnection(ws, true)
-	proxy.JoinChannel(sock)
-	proxy.Start()
+	proxy := NewProxy(ws, false)
+	proxy.Start(sock)
 }
 
-func (sock *NetworkWebSocket) upgradeToWebSocket(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
-	// Chose a subprotocol from those offered in the client request
-	selectedSubprotocol := ""
-	if subprotocolsStr := strings.TrimSpace(r.Header.Get("Sec-Websocket-Protocol")); subprotocolsStr != "" {
-		// Choose the first subprotocol requested in 'Sec-Websocket-Protocol' header
-		selectedSubprotocol = strings.Split(subprotocolsStr, ",")[0]
-	}
-
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  8192,
-		WriteBufferSize: 8192,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // allow all cross-origin access
-		},
-	}
-
-	ws, err := upgrader.Upgrade(w, r, map[string][]string{
-		"Access-Control-Allow-Origin":      []string{"*"},
-		"Access-Control-Allow-Credentials": []string{"true"},
-		"Access-Control-Allow-Headers":     []string{"content-type"},
-		// Return requested subprotocol(s) as supported so peers can handle it
-		"Sec-Websocket-Protocol": []string{selectedSubprotocol},
-	})
-	if err != nil {
-		if _, ok := err.(websocket.HandshakeError); !ok {
-			log.Println(err)
-		}
-		return nil, err
-	}
-
-	return ws, nil
-}
-
-func (sock *NetworkWebSocket) dialFromDNSRecord(record *NetworkWebSocket_DNSRecord) (*ProxyConnection, error) {
-
-	hosts := [...]string{record.AddrV4.String(), record.AddrV6.String()}
-
-	for i := 0; i < len(hosts); i++ {
-
-		if hosts[i] == "<nil>" {
-			continue
-		}
-
-		// Build URL
-		remoteWSUrl := url.URL{
-			Scheme: "wss",
-			Host:   fmt.Sprintf("%s:%d", hosts[i], record.Port),
-			Path:   record.Path,
-		}
-
-		// Establish Proxy WebSocket connection over TLS-SRP
-
-		tlsSrpDialer := &TLSSRPDialer{
-			&websocket.Dialer{
-				HandshakeTimeout: time.Duration(10) * time.Second,
-				ReadBufferSize:   8192,
-				WriteBufferSize:  8192,
-			},
-			&tls.Config{
-				SRPUser:     record.Hash_Base64,
-				SRPPassword: sock.serviceName,
-			},
-		}
-
-		ws, _, nErr := tlsSrpDialer.Dial(remoteWSUrl, map[string][]string{
-			"Origin":                 []string{"localhost"},
-			"Sec-WebSocket-Protocol": []string{"nws-proxy-draft-01"},
-		})
-		if nErr != nil {
-			errStr := fmt.Sprintf("Proxy named web socket connection to wss://%s%s failed: %s", remoteWSUrl.Host, remoteWSUrl.Path, nErr)
-			return nil, errors.New(errStr)
-		}
-
-		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
-
-		// Create, bind and start a new proxy connection
-		proxyConn := NewProxyConnection(ws, false)
-		proxyConn.JoinChannel(sock)
-		proxyConn.setHash_Base64(record.Hash_Base64)
-		proxyConn.Start()
-
-		return proxyConn, nil
-
-	}
-
-	return nil, errors.New("Could not establish proxy named web socket connection")
-
-}
-
-// Send service broadcast messages on NetworkWebSocket connections
-func (sock *NetworkWebSocket) messageDispatcher() {
+// Send service broadcast messages on Socket connections
+func (sock *Socket) messageDispatcher() {
 	for {
 		select {
 		case wsBroadcast, ok := <-sock.broadcastBuffer:
@@ -287,22 +160,24 @@ func (sock *NetworkWebSocket) messageDispatcher() {
 	}
 }
 
-// Broadcast a message to all peer connections for this NetworkWebSocket
+// Broadcast a message to all peer connections for this Socket
 // instance (except to the src websocket connection)
-func (sock *NetworkWebSocket) localBroadcast(broadcast *NetworkWebSocketWireMessage) {
+func (sock *Socket) localBroadcast(broadcast *WireMessage) {
 	// Write to peer connections
 	for _, peer := range sock.peers {
 		// don't send back to self
 		if peer.id == broadcast.Source {
 			continue
 		}
-		peer.send("broadcast", broadcast.Source, "", broadcast.Payload)
+		if wireData, err := encodeWireMessage("broadcast", broadcast.Source, "", broadcast.Payload); err == nil {
+			peer.transport.Write(wireData)
+		}
 	}
 }
 
-// Broadcast a message to all proxy connections for this NetworkWebSocket
+// Broadcast a message to all proxy connections for this Socket
 // instance (except to the src websocket connection)
-func (sock *NetworkWebSocket) remoteBroadcast(broadcast *NetworkWebSocketWireMessage) {
+func (sock *Socket) remoteBroadcast(broadcast *WireMessage) {
 	// Only send to remote proxies if this message was not received from a proxy itself
 	if broadcast.fromProxy {
 		return
@@ -315,13 +190,15 @@ func (sock *NetworkWebSocket) remoteBroadcast(broadcast *NetworkWebSocketWireMes
 		if !proxy.writeable || proxy.base.id == broadcast.Source {
 			continue
 		}
-		proxy.send("broadcast", broadcast.Source, "", broadcast.Payload)
+		if wireData, err := encodeWireMessage("broadcast", broadcast.Source, "", broadcast.Payload); err == nil {
+			proxy.base.transport.Write(wireData)
+		}
 	}
 }
 
 // Destroy this Network Web Socket service instance, close all
 // peer and proxy connections.
-func (sock *NetworkWebSocket) Stop() {
+func (sock *Socket) Stop() {
 	// Close discovery browser
 	if sock.discoveryService != nil {
 		sock.discoveryService.Shutdown()
@@ -341,61 +218,4 @@ func (sock *NetworkWebSocket) Stop() {
 
 // StopNotify returns a channel that receives a empty integer
 // when the channel service is terminated.
-func (sock *NetworkWebSocket) stopNotify() <-chan int { return sock.done }
-
-/** TLS-SRP Dialer interface **/
-
-type TLSSRPDialer struct {
-	*websocket.Dialer
-
-	TLSClientConfig *tls.Config
-}
-
-// Dial creates a new TLS-SRP based client connection. Use requestHeader to specify the
-// origin (Origin), subprotocols (Sec-WebSocket-Protocol) and cookies (Cookie).
-// Use the response.Header to get the selected subprotocol
-// (Sec-WebSocket-Protocol) and cookies (Set-Cookie).
-//
-// If the WebSocket handshake fails, ErrBadHandshake is returned along with a
-// non-nil *http.Response so that callers can handle redirects, authentication,
-// etc.
-func (d *TLSSRPDialer) Dial(url url.URL, requestHeader http.Header) (*websocket.Conn, *http.Response, error) {
-	var deadline time.Time
-
-	if d.HandshakeTimeout != 0 {
-		deadline = time.Now().Add(d.HandshakeTimeout)
-	}
-
-	netConn, err := tls.Dial("tcp", url.Host, d.TLSClientConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	defer func() {
-		if netConn != nil {
-			netConn.Close()
-		}
-	}()
-
-	if err := netConn.SetDeadline(deadline); err != nil {
-		return nil, nil, err
-	}
-
-	if len(d.Subprotocols) > 0 {
-		h := http.Header{}
-		for k, v := range requestHeader {
-			h[k] = v
-		}
-		h.Set("Sec-Websocket-Protocol", strings.Join(d.Subprotocols, ", "))
-		requestHeader = h
-	}
-
-	conn, resp, err := websocket.NewClient(netConn, &url, requestHeader, d.ReadBufferSize, d.WriteBufferSize)
-	if err != nil {
-		return nil, resp, err
-	}
-
-	netConn.SetDeadline(time.Time{})
-	netConn = nil // to avoid close in defer.
-	return conn, resp, nil
-}
+func (sock *Socket) stopNotify() <-chan int { return sock.done }

@@ -1,85 +1,171 @@
 package networkwebsockets
 
 import (
-	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/richtr/websocket"
 )
 
-type PeerConnection struct {
+type Peer struct {
 	// Unique identifier for this peer connection
 	id string
 
 	// The Network Web Socket channel to which this peer connection belongs
-	channel *NetworkWebSocket
+	channel *Socket
 
-	// WebSocket connection object
-	conn *websocket.Conn
+	// Transport object
+	transport *Transport
 
 	active bool
 }
 
-func NewPeerConnection(conn *websocket.Conn) *PeerConnection {
-	peerConn := &PeerConnection{
-		id:   GenerateId(),
-		conn: conn,
-	}
-
-	return peerConn
+type PeerMessageHandler struct {
+	peer *Peer
 }
 
-func (peer *PeerConnection) JoinChannel(channel *NetworkWebSocket) {
-	if channel == nil {
-		return
+func (handler *PeerMessageHandler) Read(buf []byte) error {
+	peer := handler.peer
+	if peer == nil {
+		return errors.New("PeerMessageHandler requires an attached Peer object")
 	}
 
-	peer.channel = channel
+	message, err := decodeWireMessage(buf)
+	if err != nil {
+		return err
+	}
 
-	// Add reference to this peer connection to channel
-	peer.addConnection()
+	switch message.Action {
+	// 'connect' and 'disconnect' events are write-only so will not be handled here
+
+	case "status":
+
+		// Echo peer id back to callee
+		wireData, err := encodeWireMessage("status", peer.id, peer.id, "")
+
+		if err != nil {
+			return err
+		}
+
+		peer.transport.Write(wireData)
+
+		return nil
+
+	case "broadcast":
+
+		wsBroadcast := &WireMessage{
+			Action:    "broadcast",
+			Source:    peer.id,
+			Target:    "", // target all connections
+			Payload:   message.Payload,
+			fromProxy: false,
+		}
+		peer.channel.broadcastBuffer <- wsBroadcast
+
+		return nil
+
+	case "message":
+
+		if message.Target == "" {
+			return errors.New("Message must have a target identifier")
+		}
+
+		wireData, err := encodeWireMessage("message", peer.id, message.Target, message.Payload)
+
+		if err != nil {
+			return err
+		}
+
+		// Relay message to peer channel that matches target
+		for _, _peer := range peer.channel.peers {
+			if _peer.id == message.Target {
+				_peer.transport.Write(wireData)
+				return nil
+			}
+		}
+
+		// If we have not delivered the message yet then hunt for a
+		// proxy that owns target peer id in known proxies
+		for _, proxy := range peer.channel.proxies {
+			if proxy.peerIds[message.Target] {
+				proxy.base.transport.Write(wireData)
+				return nil
+			}
+		}
+
+	}
+
+	return errors.New("Could not find target for message")
 }
 
-func (peer *PeerConnection) LeaveChannel() {
-	if peer.channel == nil {
-		return
+func (handler *PeerMessageHandler) Write(buf []byte) error {
+	peer := handler.peer
+	if peer == nil {
+		return errors.New("PeerMessageHandler requires an attached Peer object")
 	}
 
-	// Add reference to this peer connection to channel
-	peer.removeConnection()
-
-	peer.channel = nil
-}
-
-func (peer *PeerConnection) Start() error {
-	if peer.channel == nil {
-		return errors.New("PeerConnection does not have a channel. You must invoke .JoinGroup before .Start")
+	if !peer.active {
+		return errors.New("Peer is not active")
 	}
 
-	if peer.active {
-		return errors.New("PeerConnection is already started")
-	}
-
-	// Start connection read/write pumps
-	go peer.writeConnectionPump()
-	go peer.readConnectionPump()
-
-	peer.active = true
+	peer.transport.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	peer.transport.conn.WriteMessage(websocket.TextMessage, buf)
 
 	return nil
 }
 
-func (peer *PeerConnection) Stop() error {
+func NewPeer(conn *websocket.Conn) *Peer {
+	peerConn := &Peer{
+		id:   GenerateId(),
+	}
+
+	// Create a new peer socket message handler
+	handler := &PeerMessageHandler{peerConn}
+
+	// Create a new peer socket transporter
+	transport := NewTransport(conn, handler)
+
+	// Attach peer transport to peer object
+	peerConn.transport = transport
+
+	return peerConn
+}
+
+func (peer *Peer) Start(channel *Socket) error {
+	if channel == nil {
+		return errors.New("Peer requires a channel to start")
+	}
+
+	if peer.active {
+		return errors.New("Peer is already started")
+	}
+
+	// Start connection read/write pumps
+	peer.transport.Start()
+	go func() {
+		<-peer.transport.StopNotify()
+		peer.Stop()
+	}()
+
+	peer.channel = channel
+	peer.active = true
+
+	// Add reference to this peer connection to channel
+	peer.addConnection()
+
+	return nil
+}
+
+func (peer *Peer) Stop() error {
 	if !peer.active {
-		return errors.New("PeerConnection cannot be stopped because it is not currently active")
+		return errors.New("Peer cannot be stopped because it is not currently active")
 	}
 
 	// Remove references to this peer connection from channel
 	peer.removeConnection()
 
 	// Close websocket connection
-	peer.conn.Close()
+	peer.transport.Stop()
 
 	// If no more local peers are connected then remove the current Named Web Socket service
 	if len(peer.channel.peers) == 0 {
@@ -91,149 +177,43 @@ func (peer *PeerConnection) Stop() error {
 	return nil
 }
 
-func (peer *PeerConnection) SendBroadcast(data string) {
-	wsBroadcast := &NetworkWebSocketWireMessage{
-		Action:    "broadcast",
-		Source:    peer.id,
-		Target:    "", // target all connections
-		Payload:   data,
-		fromProxy: false,
-	}
-	peer.channel.broadcastBuffer <- wsBroadcast
-}
-
-func (peer *PeerConnection) SendMessage(data string, targetId string) {
-	if targetId == "" {
-		return
-	}
-
-	// Relay message to peer channel that matches target
-	for _, _peer := range peer.channel.peers {
-		if _peer.id == targetId {
-			_peer.send("message", peer.id, targetId, data)
-			return
-		}
-	}
-
-	// If we have not delivered the message yet then hunt for a
-	// proxy that owns target peer id in known proxies
-	for _, proxy := range peer.channel.proxies {
-		if proxy.peerIds[targetId] {
-			proxy.send("message", peer.id, targetId, data)
-			return
-		}
-	}
-}
-
-// Send a message to the target websocket connection
-func (peer *PeerConnection) send(action string, source string, target string, payload string) {
-	// Construct proxy wire message
-	m := NetworkWebSocketWireMessage{
-		Action:  action,
-		Source:  source,
-		Target:  target,
-		Payload: payload,
-	}
-	messagePayload, err := json.Marshal(m)
-	if err != nil {
-		return
-	}
-
-	peer.conn.SetWriteDeadline(time.Now().Add(writeWait))
-	peer.conn.WriteMessage(websocket.TextMessage, messagePayload)
-}
-
-// readConnectionPump pumps messages from an individual websocket connection to the dispatcher
-func (peer *PeerConnection) readConnectionPump() {
-	defer func() {
-		peer.Stop()
-	}()
-
-	peer.conn.SetReadLimit(maxMessageSize)
-	peer.conn.SetReadDeadline(time.Now().Add(pongWait))
-	peer.conn.SetPongHandler(func(string) error {
-		peer.conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
-	})
-
-	for {
-		opCode, buf, err := peer.conn.ReadMessage()
-		if err != nil || opCode != websocket.TextMessage {
-			break
-		}
-
-		var message NetworkWebSocketWireMessage
-		if err := json.Unmarshal(buf, &message); err != nil {
-			continue // ignore unrecognized message format
-		}
-
-		switch message.Action {
-		// 'connect' and 'disconnect' events are write-only so will not be handled here
-
-		case "status":
-
-			// Echo peer id back to callee
-			peer.send("status", peer.id, peer.id, "")
-
-		case "broadcast":
-
-			peer.SendBroadcast(string(message.Payload))
-
-		case "message":
-
-			peer.SendMessage(string(message.Payload), message.Target)
-
-		}
-
-	}
-}
-
-// writeConnectionPump keeps an individual websocket connection alive
-func (peer *PeerConnection) writeConnectionPump() {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-	}()
-	for {
-		select {
-		case <-ticker.C:
-			peer.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := peer.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				return
-			}
-		}
-	}
-}
-
-// Set up a new NetworkWebSocket connection instance
-func (peer *PeerConnection) addConnection() {
+// Set up a new Socket connection instance
+func (peer *Peer) addConnection() {
 	// Add this websocket instance to Named WebSocket broadcast list
 	peer.channel.peers = append(peer.channel.peers, peer)
 
 	for _, _peer := range peer.channel.peers {
 		if _peer.id != peer.id {
 			// Inform other local peer connections that we now own this peer
-			_peer.send("connect", _peer.id, peer.id, "")
+			if wireData, err := encodeWireMessage("connect", _peer.id, peer.id, ""); err == nil {
+				_peer.transport.Write(wireData)
+			}
 
 			// Inform this peer of all the other peer connections we own
-			peer.send("connect", peer.id, _peer.id, "")
+			if wireData, err := encodeWireMessage("connect", peer.id, _peer.id, ""); err == nil {
+				peer.transport.Write(wireData)
+			}
 		}
 	}
 
 	for _, proxy := range peer.channel.proxies {
 		// Inform all proxy connections that we now own this peer connection
 		if proxy.writeable {
-			proxy.send("connect", proxy.base.id, peer.id, "")
+			if wireData, err := encodeWireMessage("connect", proxy.base.id, peer.id, ""); err == nil {
+				proxy.base.transport.Write(wireData)
+			}
 		}
 		// Inform current peer of all the peer connections other connected proxies own
 		for peerId, _ := range proxy.peerIds {
-			peer.send("connect", proxy.base.id, peerId, "")
+			if wireData, err := encodeWireMessage("connect", proxy.base.id, peerId, ""); err == nil {
+				peer.transport.Write(wireData)
+			}
 		}
 	}
 }
 
-// Tear down an existing NetworkWebSocket connection instance
-func (peer *PeerConnection) removeConnection() {
+// Tear down an existing Socket connection instance
+func (peer *Peer) removeConnection() {
 	for i, conn := range peer.channel.peers {
 		if conn.id == peer.id {
 			peer.channel.peers = append(peer.channel.peers[:i], peer.channel.peers[i+1:]...)
@@ -245,14 +225,18 @@ func (peer *PeerConnection) removeConnection() {
 	for _, _peer := range peer.channel.peers {
 		// don't notify peer if its id matches the peer's id
 		if _peer.id != peer.id {
-			_peer.send("disconnect", _peer.id, peer.id, "")
+			if wireData, err := encodeWireMessage("disconnect", _peer.id, peer.id, ""); err == nil {
+				_peer.transport.Write(wireData)
+			}
 		}
 	}
 
 	// Inform all proxy connections that we no longer own this peer connection
 	for _, proxy := range peer.channel.proxies {
 		if proxy.writeable {
-			proxy.send("disconnect", proxy.base.id, peer.id, "")
+			if wireData, err := encodeWireMessage("disconnect", proxy.base.id, peer.id, ""); err == nil {
+				proxy.base.transport.Write(wireData)
+			}
 		}
 	}
 }

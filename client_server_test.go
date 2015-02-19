@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func createClient(t testing.TB, urlStr string) *NetworkWebSocketClient {
+func createClient(t testing.TB, urlStr string) *Client {
 	client, _, err := Dial(urlStr)
 	if err != nil {
 		t.Fatalf("Dial: ", err)
@@ -13,7 +13,7 @@ func createClient(t testing.TB, urlStr string) *NetworkWebSocketClient {
 	return client
 }
 
-func getClientId(client *NetworkWebSocketClient) string {
+func getClientId(client *Client) string {
 	// Request client's peer id
 	client.SendStatusRequest()
 	// Wait for response
@@ -22,19 +22,19 @@ func getClientId(client *NetworkWebSocketClient) string {
 	return message.Target
 }
 
-func checkConnect(t testing.TB, message NetworkWebSocketWireMessage, expectedTarget string) {
+func checkConnect(t testing.TB, message WireMessage, expectedTarget string) {
 	if message.Target != expectedTarget {
 		t.Fatalf("connect=%s, want %s", message.Target, expectedTarget)
 	}
 }
 
-func checkDisconnect(t testing.TB, message NetworkWebSocketWireMessage, expectedTarget string) {
+func checkDisconnect(t testing.TB, message WireMessage, expectedTarget string) {
 	if message.Target != expectedTarget {
 		t.Fatalf("disconnect=%s, want %s", message.Target, expectedTarget)
 	}
 }
 
-func checkBroadcast(t testing.TB, payload string, sender *NetworkWebSocketClient, receivers []*NetworkWebSocketClient) {
+func checkBroadcast(t testing.TB, payload string, sender *Client, receivers []*Client) {
 	// send broadcast message from sender
 	sender.SendBroadcastData(payload)
 
@@ -47,7 +47,7 @@ func checkBroadcast(t testing.TB, payload string, sender *NetworkWebSocketClient
 	}
 }
 
-func checkMessage(t testing.TB, payload string, targetId string, sender *NetworkWebSocketClient, receiver *NetworkWebSocketClient) {
+func checkMessage(t testing.TB, payload string, targetId string, sender *Client, receiver *Client) {
 	if targetId == "" {
 		t.Fatalf("No target identifier provided")
 	}
@@ -66,7 +66,7 @@ func checkMessage(t testing.TB, payload string, targetId string, sender *Network
 
 func TestSameProxyClients(t *testing.T) {
 
-	service := NewNetworkWebSocketService("localhost", 21000)
+	service := NewService("localhost", 21000)
 	_ = service.Start()
 
 	// Create new Network Web Socket channel peers
@@ -88,9 +88,9 @@ func TestSameProxyClients(t *testing.T) {
 	checkConnect(t, <-client3.Connect, client2Id)
 
 	// Test broadcast messaging
-	checkBroadcast(t, "hello world 1", client1, []*NetworkWebSocketClient{client2, client3})
-	checkBroadcast(t, "hello world 2", client2, []*NetworkWebSocketClient{client1, client3})
-	checkBroadcast(t, "hello world 3", client3, []*NetworkWebSocketClient{client1, client2})
+	checkBroadcast(t, "hello world 1", client1, []*Client{client2, client3})
+	checkBroadcast(t, "hello world 2", client2, []*Client{client1, client3})
+	checkBroadcast(t, "hello world 3", client3, []*Client{client1, client2})
 
 	// Test direct messaging
 	checkMessage(t, "direct message 1", client2Id, client1, client2)
@@ -117,10 +117,10 @@ func TestSameProxyClients(t *testing.T) {
 
 func TestMultipleProxyClients(t *testing.T) {
 
-	service1 := NewNetworkWebSocketService("localhost", 21000)
+	service1 := NewService("localhost", 21000)
 	_ = service1.Start()
 
-	service2 := NewNetworkWebSocketService("localhost", 21001)
+	service2 := NewService("localhost", 21001)
 	_ = service2.Start()
 
 	// Create new Network Web Socket channel peers
@@ -144,9 +144,9 @@ func TestMultipleProxyClients(t *testing.T) {
 	checkConnect(t, <-client3.Connect, client1Id)
 
 	// Test broadcast messaging
-	checkBroadcast(t, "hello world 1", client1, []*NetworkWebSocketClient{client2, client3})
-	checkBroadcast(t, "hello world 2", client2, []*NetworkWebSocketClient{client1, client3})
-	checkBroadcast(t, "hello world 3", client3, []*NetworkWebSocketClient{client1, client2})
+	checkBroadcast(t, "hello world 1", client1, []*Client{client2, client3})
+	checkBroadcast(t, "hello world 2", client2, []*Client{client1, client3})
+	checkBroadcast(t, "hello world 3", client3, []*Client{client1, client2})
 
 	// Test direct messaging
 	checkMessage(t, "direct message 1", client2Id, client1, client2)
@@ -178,7 +178,7 @@ func TestMultipleProxyClients(t *testing.T) {
 // BENCHMARKS
 
 func BenchmarkSameProxyClientSetup(b *testing.B) {
-	service := NewNetworkWebSocketService("localhost", 21000)
+	service := NewService("localhost", 21000)
 	_ = service.Start()
 
 	// run the benchmark function b.N times
@@ -195,7 +195,7 @@ func BenchmarkSameProxyClientSetup(b *testing.B) {
 }
 
 func BenchmarkSameProxyClientMessaging(b *testing.B) {
-	service := NewNetworkWebSocketService("localhost", 21000)
+	service := NewService("localhost", 21000)
 	_ = service.Start()
 
 	client1 := createClient(b, "ws://localhost:21000/benchmarkservice2")
@@ -219,7 +219,7 @@ func BenchmarkSameProxyClientMessaging(b *testing.B) {
 }
 
 func BenchmarkSameProxyClientBroadcast(b *testing.B) {
-	service := NewNetworkWebSocketService("localhost", 21000)
+	service := NewService("localhost", 21000)
 	_ = service.Start()
 
 	client1 := createClient(b, "ws://localhost:21000/benchmarkservice3")
@@ -228,7 +228,7 @@ func BenchmarkSameProxyClientBroadcast(b *testing.B) {
 
 	// run the benchmark function b.N times
 	for n := 0; n < b.N; n++ {
-		checkBroadcast(b, "benchmark test msg", client1, []*NetworkWebSocketClient{client2, client3})
+		checkBroadcast(b, "benchmark test msg", client1, []*Client{client2, client3})
 	}
 
 	go func() {
