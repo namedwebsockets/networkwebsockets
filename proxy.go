@@ -51,6 +51,8 @@ func (handler *ProxyMessageHandler) Read(buf []byte) error {
 			}
 		}
 
+		return nil
+
 	case "disconnect":
 
 		delete(proxy.peerIds, message.Target)
@@ -61,6 +63,8 @@ func (handler *ProxyMessageHandler) Read(buf []byte) error {
 				peer.transport.Write(wireData)
 			}
 		}
+
+		return nil
 
 	case "broadcast":
 
@@ -74,6 +78,8 @@ func (handler *ProxyMessageHandler) Read(buf []byte) error {
 		}
 
 		proxy.base.channel.broadcastBuffer <- wsBroadcast
+
+		return nil
 
 	case "message":
 
@@ -93,6 +99,8 @@ func (handler *ProxyMessageHandler) Read(buf []byte) error {
 		if !messageSent {
 			fmt.Errorf("P2P message target could not be found. Not sent.")
 		}
+
+		return nil
 	}
 
 	return errors.New("Could not find target for message")
