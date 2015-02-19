@@ -2,12 +2,12 @@ package networkwebsockets
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
-  "log"
 
 	tls "github.com/richtr/go-tls-srp"
 	"github.com/richtr/websocket"
@@ -127,8 +127,8 @@ func (t *Transport) readPump(wg *sync.WaitGroup) {
 
 		// Pass incoming message to our assigned message handler
 		if err := t.Read(buf); err != nil {
-      log.Printf("err: %v", err)
-    }
+			log.Printf("err: %v", err)
+		}
 	}
 
 	// Indicate object is closed

@@ -116,7 +116,7 @@ func (handler *PeerMessageHandler) Write(buf []byte) error {
 
 func NewPeer(conn *websocket.Conn) *Peer {
 	peerConn := &Peer{
-		id:   GenerateId(),
+		id: GenerateId(),
 	}
 
 	// Create a new peer socket message handler
