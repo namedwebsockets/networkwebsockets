@@ -111,7 +111,7 @@ func dialProxyFromDNSRecord(record *DNSRecord, channel *Channel) error {
 		log.Printf("Established proxy named web socket connection to wss://%s%s", remoteWSUrl.Host, remoteWSUrl.Path)
 
 		// Create, bind and start a new proxy connection
-		proxyConn := NewProxy(ws, true)
+		proxyConn := NewProxy(ws, false)
 		proxyConn.setHash_Base64(record.Hash_Base64)
 		proxyConn.Start(channel)
 

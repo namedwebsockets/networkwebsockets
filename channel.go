@@ -140,7 +140,7 @@ func (channel *Channel) ServeProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create, bind and start a new proxy connection
-	proxy := NewProxy(ws, false)
+	proxy := NewProxy(ws, true)
 	proxy.Start(channel)
 }
 
