@@ -70,8 +70,8 @@ func (t *Transport) Start() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go t.writePump(&wg)
 	go t.readPump(&wg)
+	go t.writePump(&wg)
 
 	t.open = true
 
