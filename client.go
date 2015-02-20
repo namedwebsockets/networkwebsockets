@@ -1,14 +1,61 @@
 package networkwebsockets
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/richtr/websocket"
 )
 
-func Dial(urlStr string) (*Client, *http.Response, error) {
+type ClientMessageHandler struct {
+	client *Client
+}
+
+func (handler *ClientMessageHandler) Read(buf []byte) error {
+	client := handler.client
+	if client == nil {
+		return errors.New("ClientMessageHandler requires an attached Client object")
+	}
+
+	message, err := decodeWireMessage(buf)
+	if err != nil {
+		return err
+	}
+
+	switch message.Action {
+	case "connect":
+		client.Connect <- message
+	case "disconnect":
+		client.Disconnect <- message
+	case "status":
+		client.Status <- message
+	case "broadcast":
+		client.Broadcast <- message
+	case "message":
+		client.Message <- message
+	}
+
+	return nil
+}
+
+func (handler *ClientMessageHandler) Write(buf []byte) error {
+	client := handler.client
+	if client == nil {
+		return errors.New("ClientMessageHandler requires an attached Client object")
+	}
+
+	if !client.transport.open {
+		return errors.New("Client is not active")
+	}
+
+	client.transport.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	client.transport.conn.WriteMessage(websocket.TextMessage, buf)
+
+	return nil
+}
+
+func Dial(urlStr string, handler MessageHandler) (*Client, *http.Response, error) {
 	d := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		ReadBufferSize:   8192,
@@ -20,11 +67,17 @@ func Dial(urlStr string) (*Client, *http.Response, error) {
 		return nil, nil, err
 	}
 
-	client := NewClient(wsConn)
+	transport := NewTransport(wsConn, handler)
+
+	client := NewClient(transport)
+
+	// Setup default client message handler if one has not been provided
+	if client.transport.handler == nil {
+		client.transport.handler = &ClientMessageHandler{client}
+	}
 
 	// Start read/write pumps
-	go client.readPump()
-	go client.writePump()
+	client.Start()
 
 	return client, httpResp, nil
 }
@@ -32,8 +85,8 @@ func Dial(urlStr string) (*Client, *http.Response, error) {
 // Client interface
 
 type Client struct {
-	// Underlying websocket connection object
-	conn *websocket.Conn
+	// Underlying transport object
+	transport *Transport
 
 	// incoming message channels
 	Status     chan WireMessage
@@ -43,9 +96,9 @@ type Client struct {
 	Broadcast  chan WireMessage
 }
 
-func NewClient(wsConn *websocket.Conn) *Client {
+func NewClient(transport *Transport) *Client {
 	client := &Client{
-		conn: wsConn,
+		transport: transport,
 
 		Status:     make(chan WireMessage, 255),
 		Connect:    make(chan WireMessage, 255),
@@ -57,8 +110,22 @@ func NewClient(wsConn *websocket.Conn) *Client {
 	return client
 }
 
+func (client *Client) Start() {
+	// Start read/write pumps
+	client.transport.Start()
+}
+
+func (client *Client) Stop() {
+	// Stop read/write pumps
+	client.transport.Stop()
+}
+
+// Default Client Message Handler Helper functions
+
 func (client *Client) SendBroadcastData(data string) {
-	client.send("broadcast", "", data)
+	if wireData, err := encodeWireMessage("broadcast", "", "", data); err == nil {
+		client.transport.Write(wireData)
+	}
 }
 
 func (client *Client) SendMessageData(data string, targetId string) {
@@ -66,83 +133,13 @@ func (client *Client) SendMessageData(data string, targetId string) {
 		return
 	}
 
-	client.send("message", targetId, data)
+	if wireData, err := encodeWireMessage("message", "", targetId, data); err == nil {
+		client.transport.Write(wireData)
+	}
 }
 
 func (client *Client) SendStatusRequest() {
-	client.send("status", "", "")
-}
-
-// Send a message to the target websocket connection
-func (client *Client) send(action string, target string, payload string) {
-	// Construct proxy wire message
-	m := WireMessage{
-		Action:  action,
-		Target:  target,
-		Payload: payload,
+	if wireData, err := encodeWireMessage("status", "", "", ""); err == nil {
+		client.transport.Write(wireData)
 	}
-
-	wireMsg, err := json.Marshal(m)
-	if err != nil {
-		return
-	}
-
-	// TOOO: This is wrong!
-	client.conn.SetWriteDeadline(time.Now().Add(writeWait))
-	client.conn.WriteMessage(websocket.TextMessage, wireMsg)
-}
-
-// readPump pumps messages from an individual websocket connection to the dispatcher
-func (client *Client) readPump() {
-	defer func() {
-		//client.Stop()
-	}()
-	client.conn.SetReadLimit(maxMessageSize)
-	client.conn.SetReadDeadline(time.Now().Add(pongWait))
-	client.conn.SetPongHandler(func(string) error { client.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
-	for {
-		opCode, buf, err := client.conn.ReadMessage()
-		if err != nil || opCode != websocket.TextMessage {
-			break
-		}
-
-		var message WireMessage
-		if err := json.Unmarshal(buf, &message); err != nil {
-			continue // ignore unrecognized message format
-		}
-
-		switch message.Action {
-		case "connect":
-			client.Connect <- message
-		case "disconnect":
-			client.Disconnect <- message
-		case "status":
-			client.Status <- message
-		case "broadcast":
-			client.Broadcast <- message
-		case "message":
-			client.Message <- message
-		}
-	}
-}
-
-// writePump keeps an individual websocket connection alive
-func (client *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-	}()
-	for {
-		select {
-		case <-ticker.C:
-			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := client.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				return
-			}
-		}
-	}
-}
-
-func (client *Client) Close() {
-	client.conn.Close()
 }

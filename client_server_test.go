@@ -6,7 +6,7 @@ import (
 )
 
 func createClient(t testing.TB, urlStr string) *Client {
-	client, _, err := Dial(urlStr)
+	client, _, err := Dial(urlStr, nil) // use default ClientMessageHandler
 	if err != nil {
 		t.Fatalf("Dial: ", err)
 	}
@@ -67,7 +67,7 @@ func checkMessage(t testing.TB, payload string, targetId string, sender *Client,
 func TestSameProxyClients(t *testing.T) {
 
 	service := NewService("localhost", 21000)
-	_ = service.Start()
+	service.Start()
 
 	// Create new Network Web Socket channel peers
 	client1 := createClient(t, "ws://localhost:21000/testservice1")
@@ -101,14 +101,15 @@ func TestSameProxyClients(t *testing.T) {
 	checkMessage(t, "direct message 6", client2Id, client3, client2)
 
 	// Test disconnect messaging
-	client1.Close()
+
+	client1.Stop()
 	checkDisconnect(t, <-client2.Disconnect, client1Id)
 	checkDisconnect(t, <-client3.Disconnect, client1Id)
 
-	client2.Close()
+	client2.Stop()
 	checkDisconnect(t, <-client3.Disconnect, client2Id)
 
-	client3.Close()
+	client3.Stop()
 
 	go service.Stop()
 
@@ -118,10 +119,10 @@ func TestSameProxyClients(t *testing.T) {
 func TestMultipleProxyClients(t *testing.T) {
 
 	service1 := NewService("localhost", 21000)
-	_ = service1.Start()
+	service1.Start()
 
 	service2 := NewService("localhost", 21001)
-	_ = service2.Start()
+	service2.Start()
 
 	// Create new Network Web Socket channel peers
 	client1 := createClient(t, "ws://localhost:21000/testservice2")
@@ -157,14 +158,14 @@ func TestMultipleProxyClients(t *testing.T) {
 	checkMessage(t, "direct message 6", client2Id, client3, client2)
 
 	// Test disconnect messaging
-	client1.Close()
+	client1.Stop()
 	checkDisconnect(t, <-client2.Disconnect, client1Id)
 	checkDisconnect(t, <-client3.Disconnect, client1Id)
 
-	client2.Close()
+	client2.Stop()
 	checkDisconnect(t, <-client3.Disconnect, client2Id)
 
-	client3.Close()
+	client3.Stop()
 
 	go func() {
 		service1.Stop()
@@ -179,14 +180,14 @@ func TestMultipleProxyClients(t *testing.T) {
 
 func BenchmarkSameProxyClientSetup(b *testing.B) {
 	service := NewService("localhost", 21000)
-	_ = service.Start()
+	service.Start()
 
 	// run the benchmark function b.N times
 	for n := 0; n < b.N; n++ {
 		// Create new Network Web Socket channel peers
 		client := createClient(b, "ws://localhost:21000/benchmarkservice1")
 		_ = getClientId(client) // wait for client connection to be established
-		client.Close()
+		client.Stop()
 	}
 
 	go service.Stop()
@@ -209,8 +210,8 @@ func BenchmarkSameProxyClientMessaging(b *testing.B) {
 	}
 
 	go func() {
-		client1.Close()
-		client2.Close()
+		client1.Stop()
+		client2.Stop()
 
 		service.Stop()
 	}()
@@ -220,7 +221,7 @@ func BenchmarkSameProxyClientMessaging(b *testing.B) {
 
 func BenchmarkSameProxyClientBroadcast(b *testing.B) {
 	service := NewService("localhost", 21000)
-	_ = service.Start()
+	service.Start()
 
 	client1 := createClient(b, "ws://localhost:21000/benchmarkservice3")
 	client2 := createClient(b, "ws://localhost:21000/benchmarkservice3")
@@ -232,9 +233,9 @@ func BenchmarkSameProxyClientBroadcast(b *testing.B) {
 	}
 
 	go func() {
-		client1.Close()
-		client2.Close()
-		client3.Close()
+		client1.Stop()
+		client2.Stop()
+		client3.Stop()
 
 		service.Stop()
 	}()

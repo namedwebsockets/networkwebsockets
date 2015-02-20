@@ -73,9 +73,9 @@ func (t *Transport) Start() {
 	go t.writePump(&wg)
 	go t.readPump(&wg)
 
-	wg.Wait()
-
 	t.open = true
+
+	wg.Wait()
 }
 
 func (t *Transport) Stop() {
@@ -90,7 +90,11 @@ func (t *Transport) StopNotify() <-chan int { return t.done }
 
 func (t *Transport) Read(buf []byte) error {
 	if !t.open {
-		return errors.New("Transport is not currently active")
+		return errors.New("Transport is not currently active for reading")
+	}
+
+	if t.handler == nil {
+		return errors.New("Cannot read message. Transport does not have a handler assigned")
 	}
 
 	return t.handler.Read(buf)
@@ -98,7 +102,7 @@ func (t *Transport) Read(buf []byte) error {
 
 func (t *Transport) Write(buf []byte) error {
 	if !t.open {
-		return errors.New("Transport is not currently active")
+		return errors.New("Transport is not currently active for writing")
 	}
 
 	if t.handler == nil {
