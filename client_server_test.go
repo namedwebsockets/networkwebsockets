@@ -182,6 +182,8 @@ func BenchmarkSameProxyClientSetup(b *testing.B) {
 	service := NewService("localhost", 21000)
 	service.Start()
 
+	b.ResetTimer() // start benchmark timer
+
 	// run the benchmark function b.N times
 	for n := 0; n < b.N; n++ {
 		// Create new Network Web Socket channel peers
@@ -189,6 +191,8 @@ func BenchmarkSameProxyClientSetup(b *testing.B) {
 		_ = getClientId(client) // wait for client connection to be established
 		client.Stop()
 	}
+
+	b.StopTimer() // end benchmark timer
 
 	go service.Stop()
 
@@ -204,10 +208,14 @@ func BenchmarkSameProxyClientMessaging(b *testing.B) {
 
 	client2Id := getClientId(client2)
 
+	b.ResetTimer() // start benchmark timer
+
 	// run the benchmark function b.N times
 	for n := 0; n < b.N; n++ {
 		checkMessage(b, "direct benchmark message", client2Id, client1, client2)
 	}
+
+	b.StopTimer() // end benchmark timer
 
 	go func() {
 		client1.Stop()
@@ -225,20 +233,54 @@ func BenchmarkSameProxyClientBroadcast(b *testing.B) {
 
 	client1 := createClient(b, "ws://localhost:21000/benchmarkservice3")
 	client2 := createClient(b, "ws://localhost:21000/benchmarkservice3")
-	client3 := createClient(b, "ws://localhost:21000/benchmarkservice3")
+
+	b.ResetTimer() // start benchmark timer
 
 	// run the benchmark function b.N times
 	for n := 0; n < b.N; n++ {
-		checkBroadcast(b, "benchmark test msg", client1, []*Client{client2, client3})
+		checkBroadcast(b, "benchmark test msg", client1, []*Client{client2})
 	}
+
+	b.StopTimer() // end benchmark timer
 
 	go func() {
 		client1.Stop()
 		client2.Stop()
-		client3.Stop()
 
 		service.Stop()
 	}()
 
 	<-service.StopNotify()
+}
+
+func BenchmarkDifferentProxyClientBroadcast(b *testing.B) {
+	service1 := NewService("localhost", 21000)
+	service1.Start()
+
+	service2 := NewService("localhost", 21001)
+	service2.Start()
+
+	client1 := createClient(b, "ws://localhost:21000/benchmarkservice4")
+	client2 := createClient(b, "ws://localhost:21001/benchmarkservice4")
+
+	<-client1.Connect
+	<-client2.Connect
+
+	b.ResetTimer() // start benchmark timer
+
+	// run the benchmark function b.N times
+	for n := 0; n < b.N; n++ {
+		checkBroadcast(b, "benchmark test msg", client1, []*Client{client2})
+	}
+
+	b.StopTimer() // end benchmark timer
+
+	client1.Stop()
+	client2.Stop()
+
+	go service1.Stop()
+	<-service1.StopNotify()
+
+	go service2.Stop()
+	<-service2.StopNotify()
 }
