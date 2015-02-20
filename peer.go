@@ -144,6 +144,8 @@ func (peer *Peer) Start(channel *Channel) error {
 		return errors.New("Peer is already started")
 	}
 
+	peer.channel = channel
+
 	// Start connection read/write pumps
 	peer.transport.Start()
 	go func() {
@@ -151,7 +153,6 @@ func (peer *Peer) Start(channel *Channel) error {
 		peer.Stop()
 	}()
 
-	peer.channel = channel
 	peer.active = true
 
 	// Add reference to this peer connection to channel
@@ -220,6 +221,7 @@ func (peer *Peer) addConnection() {
 func (peer *Peer) removeConnection() {
 	for i, conn := range peer.channel.peers {
 		if conn.id == peer.id {
+			peer.channel.peers[i] = nil
 			peer.channel.peers = append(peer.channel.peers[:i], peer.channel.peers[i+1:]...)
 			break
 		}

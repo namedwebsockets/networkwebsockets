@@ -1,7 +1,6 @@
 package networkwebsockets
 
 import (
-	//"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -153,6 +152,8 @@ func (proxy *Proxy) Start(channel *Channel) error {
 		return errors.New("Proxy is already started")
 	}
 
+	proxy.base.channel = channel
+
 	// Start connection read/write pumps
 	proxy.base.transport.Start()
 	go func() {
@@ -160,7 +161,6 @@ func (proxy *Proxy) Start(channel *Channel) error {
 		proxy.Stop()
 	}()
 
-	proxy.base.channel = channel
 	proxy.base.active = true
 
 	// Add reference to this proxy connection to channel
@@ -212,6 +212,7 @@ func (proxy *Proxy) addConnection() {
 func (proxy *Proxy) removeConnection() {
 	for i, conn := range proxy.base.channel.proxies {
 		if proxy.base.id == conn.base.id {
+			proxy.base.channel.proxies[i] = nil // allow to be garbage-collected
 			proxy.base.channel.proxies = append(proxy.base.channel.proxies[:i], proxy.base.channel.proxies[i+1:]...)
 			break
 		}
