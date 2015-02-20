@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
-	"net/http"
 
 	"github.com/richtr/bcrypt"
 )
@@ -100,48 +99,6 @@ func (channel *Channel) advertise(port int) {
 		channel.discoveryService = NewDiscoveryService(channel.serviceName, channel.serviceHash, channel.proxyPath, port)
 		channel.discoveryService.Register("local")
 	}
-}
-
-// Set up a new web socket connection
-func (channel *Channel) ServePeer(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-
-	ws, err := upgradeHTTPToWebSocket(w, r)
-	if err != nil {
-		http.Error(w, "Bad Request", 400)
-		return
-	}
-
-	// Create, bind and start a new peer connection
-	peer := NewPeer(ws)
-	peer.Start(channel)
-}
-
-// Set up a new web socket connection
-func (channel *Channel) ServeProxy(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-
-	requestedWebSocketSubProtocols := r.Header.Get("Sec-Websocket-Protocol")
-	if requestedWebSocketSubProtocols != "nws-proxy-draft-01" {
-		http.Error(w, "Bad Request", 400)
-		return
-	}
-
-	ws, err := upgradeHTTPToWebSocket(w, r)
-	if err != nil {
-		http.Error(w, "Bad Request", 400)
-		return
-	}
-
-	// Create, bind and start a new proxy connection
-	proxy := NewProxy(ws, true)
-	proxy.Start(channel)
 }
 
 // Send service broadcast messages on Channel connections

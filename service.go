@@ -33,141 +33,23 @@ func GenerateId() string {
 	return fmt.Sprintf("%d", rand.Int())
 }
 
-type Service struct {
-	Host string
-	Port int
-
-	ProxyPort int
-
-	// All Network Web Socket channels that this service manages
-	Channels map[string]*Channel
-
-	discoveryBrowser *DiscoveryBrowser
-
-	done chan int // blocks until .Stop() is called on this service
-
-	localListener net.Listener
-	netListener   net.Listener
+type HTTPHandler interface {
+	ServeLocalRequest(w http.ResponseWriter, r *http.Request)
+	ServeProxyRequest(w http.ResponseWriter, r *http.Request)
 }
 
-func NewService(host string, port int) *Service {
-	if host == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			log.Printf("Could not determine device hostname: %v\n", err)
-			return nil
-		}
-		host = hostname
-	}
-
-	if port <= 1024 || port >= 65534 {
-		port = 9009
-	}
-
-	service := &Service{
-		Host: host,
-		Port: port,
-
-		ProxyPort: 0,
-
-		Channels: make(map[string]*Channel),
-
-		discoveryBrowser: NewDiscoveryBrowser(),
-
-		done: make(chan int),
-	}
-
-	return service
+type DefaultServiceHandler struct {
+	service *Service
 }
 
-func (service *Service) Start() <-chan int {
-	// Start HTTP/Network Web Socket creation server
-	service.StartHTTPServer()
+func (sh *DefaultServiceHandler) ServeLocalRequest(w http.ResponseWriter, r *http.Request) {
+	service := sh.service
 
-	// Start TLS-SRP Network Web Socket (wss) proxy server
-	service.StartProxyServer()
-
-	// Start mDNS/DNS-SD Network Web Socket discovery service
-	service.StartDiscoveryBrowser(10)
-
-	return service.StopNotify()
-}
-
-func (service *Service) StartHTTPServer() {
-	// Create a new custom http server multiplexer
-	serveMux := http.NewServeMux()
-
-	// Serve network web socket creation endpoints for localhost clients
-	serveMux.HandleFunc("/", service.serveWSCreatorRequest)
-
-	// Listen and on loopback address + port
-	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
-	if err != nil {
-		log.Fatal("Could not serve web server. ", err)
+	if service == nil {
+		http.Error(w, fmt.Sprintln("This interface is not attached to a service"), 403)
+		return
 	}
 
-	service.localListener = listener
-
-	log.Printf("Serving Network Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
-
-	go http.Serve(listener, serveMux)
-}
-
-func (service *Service) StartProxyServer() {
-	// Create a new custom http server multiplexer
-	serveMux := http.NewServeMux()
-
-	// Serve secure network web socket proxy endpoints for network clients
-	serveMux.HandleFunc("/", service.serveWSProxyRequest)
-
-	// Generate random server salt for use in TLS-SRP data storage
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, 32)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	srpSaltKey := string(b)
-
-	tlsServerConfig := &tls.Config{
-		SRPLookup:   serviceTab,
-		SRPSaltKey:  srpSaltKey,
-		SRPSaltSize: len(Salt),
-	}
-
-	// Listen on all addresses + port
-	tlsSrpListener, err := tls.Listen("tcp", ":0", tlsServerConfig)
-	if err != nil {
-		log.Fatal("Could not serve proxy server. ", err)
-	}
-
-	service.netListener = tlsSrpListener
-
-	// Obtain and store the port of the proxy endpoint
-	_, port, err := net.SplitHostPort(tlsSrpListener.Addr().String())
-	if err != nil {
-		log.Fatal("Could not determine bound port of proxy server. ", err)
-	}
-
-	service.ProxyPort, _ = strconv.Atoi(port)
-
-	log.Printf("Serving Network Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
-
-	go http.Serve(tlsSrpListener, serveMux)
-}
-
-func (service *Service) StartDiscoveryBrowser(timeoutSeconds int) {
-	log.Printf("Listening for Network Web Socket services on the local network...")
-
-	go func() {
-		defer service.discoveryBrowser.Shutdown()
-
-		for !service.discoveryBrowser.closed {
-			service.discoveryBrowser.Browse(service, timeoutSeconds)
-		}
-	}()
-}
-
-func (service *Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Request) {
 	// Only allow access from localhost to all services
 	if isRequestFromLocalHost := service.checkRequestIsFromLocalHost(r.Host); !isRequestFromLocalHost {
 		http.Error(w, fmt.Sprintln("This interface is only accessible from the local machine"), 403)
@@ -219,10 +101,24 @@ func (service *Service) serveWSCreatorRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	// Serve network web socket channel peer
-	channel.ServePeer(w, r)
+	ws, err := upgradeHTTPToWebSocket(w, r)
+	if err != nil {
+		http.Error(w, "Bad Request", 400)
+		return
+	}
+
+	// Create, bind and start a new peer connection
+	peer := NewPeer(ws)
+	peer.Start(channel)
 }
 
-func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Request) {
+func (sh *DefaultServiceHandler) ServeProxyRequest(w http.ResponseWriter, r *http.Request) {
+	service := sh.service
+
+	if service == nil {
+		http.Error(w, fmt.Sprintln("This interface is not attached to a service"), 403)
+		return
+	}
 
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
@@ -239,10 +135,24 @@ func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	requestedWebSocketSubProtocols := r.Header.Get("Sec-Websocket-Protocol")
+	if requestedWebSocketSubProtocols != "nws-proxy-draft-01" {
+		http.Error(w, "Bad Request", 400)
+		return
+	}
+
 	// Resolve servicePath to an active named websocket service
 	for _, channel := range service.Channels {
 		if channel.proxyPath == r.URL.Path {
-			channel.ServeProxy(w, r)
+			ws, err := upgradeHTTPToWebSocket(w, r)
+			if err != nil {
+				http.Error(w, "Bad Request", 400)
+				return
+			}
+
+			// Create, bind and start a new proxy connection
+			proxy := NewProxy(ws, true)
+			proxy.Start(channel)
 
 			return
 		}
@@ -250,6 +160,145 @@ func (service *Service) serveWSProxyRequest(w http.ResponseWriter, r *http.Reque
 
 	http.Error(w, "Not Found", 404)
 	return
+}
+
+type Service struct {
+	Host string
+	Port int
+
+	ProxyPort int
+
+	Handler HTTPHandler
+
+	// All Network Web Socket channels that this service manages
+	Channels map[string]*Channel
+
+	discoveryBrowser *DiscoveryBrowser
+
+	done chan int // blocks until .Stop() is called on this service
+
+	localListener net.Listener
+	netListener   net.Listener
+}
+
+func NewService(host string, port int) *Service {
+	if host == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			log.Printf("Could not determine device hostname: %v\n", err)
+			return nil
+		}
+		host = hostname
+	}
+
+	if port <= 1024 || port >= 65534 {
+		port = 9009
+	}
+
+	service := &Service{
+		Host: host,
+		Port: port,
+
+		ProxyPort: 0,
+
+		Channels: make(map[string]*Channel),
+
+		discoveryBrowser: NewDiscoveryBrowser(),
+
+		done: make(chan int),
+	}
+
+	// Setup a new default http service handler
+	service.Handler = &DefaultServiceHandler{service}
+
+	return service
+}
+
+func (service *Service) Start() <-chan int {
+	// Start HTTP/Network Web Socket creation server
+	service.StartHTTPServer()
+
+	// Start TLS-SRP Network Web Socket (wss) proxy server
+	service.StartProxyServer()
+
+	// Start mDNS/DNS-SD Network Web Socket discovery service
+	service.StartDiscoveryBrowser(10)
+
+	return service.StopNotify()
+}
+
+func (service *Service) StartHTTPServer() {
+	// Create a new custom http server multiplexer
+	serveMux := http.NewServeMux()
+
+	// Serve network web socket creation endpoints for localhost clients
+	serveMux.HandleFunc("/", service.Handler.ServeLocalRequest)
+
+	// Listen and on loopback address + port
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", service.Port))
+	if err != nil {
+		log.Fatal("Could not serve web server. ", err)
+	}
+
+	service.localListener = listener
+
+	log.Printf("Serving Network Web Socket Creator Proxy at address [ ws://localhost:%d/ ]", service.Port)
+
+	go http.Serve(listener, serveMux)
+}
+
+func (service *Service) StartProxyServer() {
+	// Create a new custom http server multiplexer
+	serveMux := http.NewServeMux()
+
+	// Serve secure network web socket proxy endpoints for network clients
+	serveMux.HandleFunc("/", service.Handler.ServeProxyRequest)
+
+	// Generate random server salt for use in TLS-SRP data storage
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, 32)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	srpSaltKey := string(b)
+
+	tlsServerConfig := &tls.Config{
+		SRPLookup:   serviceTab,
+		SRPSaltKey:  srpSaltKey,
+		SRPSaltSize: len(Salt),
+	}
+
+	// Listen on all addresses + port
+	tlsSrpListener, err := tls.Listen("tcp", ":0", tlsServerConfig)
+	if err != nil {
+		log.Fatal("Could not serve proxy server. ", err)
+	}
+
+	service.netListener = tlsSrpListener
+
+	// Obtain and store the port of the proxy endpoint
+	_, port, err := net.SplitHostPort(tlsSrpListener.Addr().String())
+	if err != nil {
+		log.Fatal("Could not determine bound port of proxy server. ", err)
+	}
+
+	service.ProxyPort, _ = strconv.Atoi(port)
+
+	log.Printf("Serving Network Web Socket Network Proxy at address [ wss://%s:%d/ ]", service.Host, service.ProxyPort)
+
+	go http.Serve(tlsSrpListener, serveMux)
+}
+
+func (service *Service) StartDiscoveryBrowser(timeoutSeconds int) {
+	log.Printf("Listening for Network Web Socket services on the local network...")
+
+	go func() {
+		defer service.discoveryBrowser.Shutdown()
+
+		for !service.discoveryBrowser.closed {
+			service.discoveryBrowser.Browse(service, timeoutSeconds)
+		}
+	}()
 }
 
 // Check whether we know the given service name
