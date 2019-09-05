@@ -7,10 +7,12 @@ Network Web Sockets allow web pages, native applications and devices to create [
 
 _Channel names_ can either be:
 
-* Common, easily-configurable strings such as "webchat" to allow any service to connect to a given channel, or:
-* Pseudo-secure strings such as "cJWHi8q7SvNWAiSerpfxW3inYjXiKNqR" that are known and shared by two or more actors to connect to a custom stream.
+* Common, memorable strings such as e.g. "webchat" to allow any service to connect to a _public_ channel, or:
+* Pseudo-secure strings such as randomly-generated hashes e.g. "cJWHi8q7SvNWAiSerpfxW3inYjXiKNqR" that are known and shared out-of-band between two or more actors to connect to a _private_ channel.
 
-One of the key features of Network Web Sockets is that it is not possible to discover channel names or read/write messages in to unauthorized channels by snooping on traffic in the network. This is achieved using the mechanisms described in our [DNS-based Secure Service Discovery (DNS-SSD) draft](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-(DNS-SSD)); and encrypting all communications between participating nodes within different channels.
+Network Web Sockets prevents channel name discovery and channel message injection by snooping on the traffic in the local network. This is achieved using the mechanisms described in our [DNS-based Secure Service Discovery (DNS-SSD) draft](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-(DNS-SSD)) and encrypting all communications between participating nodes within different channels.
+
+Any channel within the Network Web Sockets ecosystem is considered as secure as its out-of-band key sharing mechanisms (whether that is on a public forum online or via other more secure sharing mechanisms). If a channel key is available to a user, then that user will be able to join that channel (although nothing stops channels performing _additional_ authentication over the channel whenever a new peer connects). Similarly, if a user is unaware of a channel name, they will have no way of discovering that channel name via any traffic flowing in the local network.
 
 Web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves for a variety of purposes:
 
