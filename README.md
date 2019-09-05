@@ -5,6 +5,13 @@ Network Web Sockets
 
 Network Web Sockets allow web pages, native applications and devices to create [*encrypted*](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-\(DNS-SSD\)) Web Socket networks by discovering, binding and connecting peers that share the same *channel name* in the local network.
 
+_Channel names_ can either be:
+
+* Common, easily-configurable strings such as "webchat" to allow any service to connect to a given channel, or:
+* Pseudo-secure strings such as "cJWHi8q7SvNWAiSerpfxW3inYjXiKNqR" that are known and shared by two or more actors to connect to a custom stream.
+
+One of the key features of Network Web Sockets is that it is not possible to discover channel names or read/write messages in to unauthorized channels by snooping on traffic in the network. This is achieved using the mechanisms described in our [DNS-based Secure Service Discovery (DNS-SSD) draft](https://github.com/namedwebsockets/networkwebsockets/wiki/Introduction-to-Secure-DNS-based-Service-Discovery-(DNS-SSD)); and encrypting all communications between participating nodes within different channels.
+
 Web pages, native applications and devices can create ad-hoc inter-applicaton communication bridges between and among themselves for a variety of purposes:
 
 * For discovering matching peer services on the local device and/or the local network.
